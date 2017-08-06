@@ -223,7 +223,7 @@ void BitFlipMutation(Chromosome<bool>* chromosome, std::map<std::string, float>*
 	float gene_mutation_rate = (*additional_parameters)["gene_mutation_rate"];
 
 	for (int i = 0; i < chromosome->genes_.size(); i++) {
-		if (random_float() < gene_mutation_rate) {
+		if (random_float() < gene_mutation_rate) { 
 			chromosome->genes_[i] = !chromosome->genes_[i];
 		}
 	}
