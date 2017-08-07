@@ -32,12 +32,12 @@ template<typename T>
 class GeneticAlgorithm {
 public:
 
-	std::function<Chromosome<T>(int, std::map<std::string, float>*)> initialization_ = NULL;
-	std::function<std::pair<Chromosome<T>, Chromosome<T>>(std::vector<Chromosome<T>>*, std::map<std::string, float>*)> selection_ = NULL;
-	std::function<void(Chromosome<T>*, Chromosome<T>*, std::map<std::string, float>*)> crossover_ = NULL;
-	std::function<void(Chromosome<T>*, std::map<std::string, float>*)> mutation_ = NULL;
-	std::function<void(Chromosome<T>*, const Parent<T>, float, std::map<std::string, float>*)> recombination_ = NULL;
-	std::function<float(Chromosome<T>, std::map<std::string, float>*)> fitness_ = NULL;
+	const std::function<Chromosome<T>(int, std::map<std::string, float>*)> initialization_ = NULL;
+	const std::function<std::pair<Chromosome<T>, Chromosome<T>>(std::vector<Chromosome<T>>*, std::map<std::string, float>*)> selection_ = NULL;
+	const std::function<void(Chromosome<T>*, Chromosome<T>*, std::map<std::string, float>*)> crossover_ = NULL;
+	const std::function<void(Chromosome<T>*, std::map<std::string, float>*)> mutation_ = NULL;
+	const std::function<void(Chromosome<T>*, const Parent<T>, float, std::map<std::string, float>*)> recombination_ = NULL;
+	const std::function<float(Chromosome<T>, std::map<std::string, float>*)> fitness_function_ = NULL;
 
 	std::map<std::string, float>* additional_parameters_ = new std::map<std::string, float>();
 
@@ -49,8 +49,42 @@ public:
 	float elitism_rate_ = 0.1f;
 
 	int max_fitness_evaluations_ = INT32_MAX;
-	int max_generations_ = INT32_MAX;
+	int max_generation_ = INT32_MAX;
 	int target_fitness_ = INT32_MAX;
+
+	GeneticAlgorithm(
+		std::function<Chromosome<T>(int, std::map<std::string, float>*)> initialization,
+		std::function<std::pair<Chromosome<T>, Chromosome<T>>(std::vector<Chromosome<T>>*, std::map<std::string, float>*)> selection,
+		std::function<void(Chromosome<T>*, Chromosome<T>*, std::map<std::string, float>*)> crossover,
+		std::function<void(Chromosome<T>*, std::map<std::string, float>*)> mutation,
+		std::function<void(Chromosome<T>*, const Parent<T>, float, std::map<std::string, float>*)> recombination,
+		std::function<float(Chromosome<T>, std::map<std::string, float>*)> fitness_function)
+		: initialization_(initialization),
+		selection_(selection),
+		crossover_(crossover),
+		mutation_(mutation),
+		recombination_(recombination),
+		fitness_function_(fitness_function)
+	{
+		if (initialization == NULL) {
+			throw std::invalid_argument("The parameter \"initialization\" must be defined.");
+		}
+		if (selection == NULL) {
+			throw std::invalid_argument("The parameter \"selection\" must be defined.");
+		}
+		if (crossover == NULL) {
+			throw std::invalid_argument("The parameter \"crossover\" must be defined.");
+		}
+		if (mutation == NULL) {
+			throw std::invalid_argument("The parameter \"mutation\" must be defined.");
+		}
+		if (recombination == NULL) {
+			throw std::invalid_argument("The parameter \"recombination\" must be defined.");
+		}
+		if (fitness_function == NULL) {
+			throw std::invalid_argument("The parameter \"fitness_function\" must be defined.");
+		}
+	}
 
 	~GeneticAlgorithm() {
 		if (additional_parameters_ != NULL) {
@@ -60,7 +94,7 @@ public:
 
 	int RunAlgorithm() {
 		CheckParameters();
-		int generations = 1;
+		int generation = 1;
 		int fitness_evaluations = 0;
 		float best_fitness = INT32_MIN;
 
@@ -69,16 +103,33 @@ public:
 
 		for (int i = 0; i < population_size_; i++) {
 			Chromosome<T> chromosome = initialization_(chromosome_length_, additional_parameters_);
-			chromosome.fitness_ = fitness_(chromosome, additional_parameters_);
+			chromosome.fitness_ = fitness_function_(chromosome, additional_parameters_);
 			chromosome.fitness_is_valid_ = true;
 			population.push_back(chromosome);
 		}
 
-		while (best_fitness < target_fitness_ && fitness_evaluations < max_fitness_evaluations_ && generations < max_generations_) {
+		//Sort the population by fitness in descending order
+		sort(population.begin(), population.end(),
+			[](const auto& lhs, const auto& rhs) {
+			return lhs.fitness_ > rhs.fitness_;
+		});
+
+		while (best_fitness < target_fitness_ && fitness_evaluations < max_fitness_evaluations_ && generation < max_generation_) {
 
 			std::vector<Chromosome<T>> offspring = std::vector<Chromosome<T>>();
 
-			for (int i = 0; i < population_size_; i += 2) {
+			//Compute the elitism size (flooring to multiples of two) 
+			int elitism_size = population_size_ * elitism_rate_;
+
+			if (elitism_size % 2 == 1) {
+				elitism_size--;
+			}
+
+			for (int i = 0; i < elitism_size; i++) {
+				offspring.push_back(population[i]);
+			}
+
+			for (int i = 0; i < population_size_ - elitism_size; i += 2) {
 				std::pair<Chromosome<T>, Chromosome<T>> parents = selection_(&population, additional_parameters_);
 
 				//Copy the parents
@@ -112,7 +163,7 @@ public:
 				}
 
 				if (!chromosome.fitness_is_valid_) {
-					chromosome.fitness_ = fitness_(chromosome, additional_parameters_);
+					chromosome.fitness_ = fitness_function_(chromosome, additional_parameters_);
 					chromosome.fitness_is_valid_ = true;
 
 					fitness_evaluations++;
@@ -135,51 +186,32 @@ public:
 							recombination_(&chromosome, chromosome.parent2_, recombination_rate_, additional_parameters_);
 						}
 					}
-
 				}
 			}
 
 			population = offspring;//è sufficiente?
 
-			best_fitness = INT32_MIN;
+			//Sort the population by fitness in descending order
+			sort(population.begin(), population.end(),
+				[](const auto& lhs, const auto& rhs) {
+				return lhs.fitness_ > rhs.fitness_;
+			});
 
-			for each (Chromosome<T> chromosome in population) {
-				if (chromosome.fitness_ > best_fitness) {
-					best_fitness = chromosome.fitness_;
-				}
-			}
+			best_fitness = population[0].fitness_;
 
-			generations++;
+			generation++;
 		}
 
 		return fitness_evaluations;
 	}
 private:
 	void CheckParameters() {
-		if (initialization_ == NULL) {
-			throw std::invalid_argument("The parameter \"initialization_\" must be defined.");
-		}
-		if (selection_ == NULL) {
-			throw std::invalid_argument("The parameter \"selection_\" must be defined.");
-		}
-		if (crossover_ == NULL) {
-			throw std::invalid_argument("The parameter \"crossover_\" must be defined.");
-		}
-		if (mutation_ == NULL) {
-			throw std::invalid_argument("The parameter \"mutation_\" must be defined.");
-		}
-		if (recombination_ == NULL) {
-			throw std::invalid_argument("The parameter \"recombination_\" must be defined.");
-		}
-		if (fitness_ == NULL) {
-			throw std::invalid_argument("The parameter \"fitness_\" must be defined.");
-		}
-
+		
 		if (population_size_ % 2 != 0) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be even.");
 		}
-		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == INT32_MAX && max_generations_ == INT32_MAX) {
-			throw std::invalid_argument("At least one of the following parameters must not be INT32_MAX: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generations_\".");
+		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == INT32_MAX && max_generation_ == INT32_MAX) {
+			throw std::invalid_argument("At least one of the following parameters must not be INT32_MAX: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
 		}
 	}
 };
@@ -315,14 +347,13 @@ float OneMaxFitness(Chromosome<bool> chromosome, std::map<std::string, float>* a
 }
 
 int RunTest(float recombination_rate) {
-	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>();
-
-	ga.initialization_ = BinaryInitialization;
-	ga.selection_ = TournamentSelection<bool>;
-	ga.crossover_ = TwoPointCrossover<bool>;
-	ga.mutation_ = BitFlipMutation;
-	ga.recombination_ = BinaryRecombinate;
-	ga.fitness_ = OneMaxFitness;
+	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
+		BinaryInitialization,
+		TournamentSelection<bool>,
+		TwoPointCrossover<bool>,
+		BitFlipMutation,
+		BinaryRecombinate,
+		OneMaxFitness);
 
 	ga.recombination_rate_ = recombination_rate;
 
