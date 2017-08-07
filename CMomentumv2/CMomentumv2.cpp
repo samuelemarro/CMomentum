@@ -12,7 +12,7 @@
 #include <map>
 #include <memory>
 
-#define GeneType int
+
 
 int random_int(int min, int max) {
 	return min + rand() / (RAND_MAX / (max - min) + 1);
@@ -47,13 +47,9 @@ public:
 
 	int max_fitness_evaluations_ = INT32_MAX;
 	int max_generations_ = INT32_MAX;
+	int target_fitness_ = INT32_MAX;
 	int chromosome_length_ = 64;
 	int population_size_ = 300;
-	int target_fitness_ = INT32_MAX;
-
-	GeneticAlgorithm() {
-	}
-
 
 	~GeneticAlgorithm() {
 		if (additional_parameters_ != NULL) {
@@ -181,8 +177,8 @@ private:
 		if (population_size_ % 2 != 0) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be even.");
 		}
-		if (target_fitness_ == INT32_MAX) {
-			throw std::invalid_argument("The parameter \"target_fitness_\" must not be INT32_MAX.");
+		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == INT32_MAX && max_generations_ == INT32_MAX) {
+			throw std::invalid_argument("At least one of the following parameters must not be INT32_MAX: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generations_\".");
 		}
 	}
 };
@@ -190,26 +186,22 @@ private:
 template<typename T>
 struct Parent {
 	std::vector<T> genes_;
-	float fitness_;
+	float fitness_ = 0;
 
 	Parent() {
 
 	}
 
-	Parent(std::vector<T> genes, float fitness) {
-		genes_ = genes;
-		fitness_ = fitness;
+	Parent(std::vector<T> genes, float fitness)
+	: genes_(genes),
+	fitness_(fitness) {
+		
 	}
 };
 
 template<typename T>
 class Chromosome {
 public:
-	Chromosome() {
-
-	}
-
-	Chromosome(const Chromosome& c) = default;
 
 	Parent<T> parent1_;
 	Parent<T> parent2_;
@@ -217,6 +209,12 @@ public:
 	bool fitness_is_valid_ = false;
 	bool has_parents_ = false;
 	std::vector<T> genes_;
+
+	Chromosome() {
+
+	}
+
+	Chromosome(const Chromosome& c) = default;
 };
 
 void BitFlipMutation(Chromosome<bool>* chromosome, std::map<std::string, float>* additional_parameters) {
