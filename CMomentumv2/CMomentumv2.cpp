@@ -206,9 +206,8 @@ public:
 	}
 private:
 	void CheckParameters() {
-		
-		if (population_size_ % 2 != 0) {
-			throw std::invalid_argument("The parameter \"population_size_\" must be even.");
+		if (population_size_ % 2 != 0 || population_size_ < 2) {
+			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
 		}
 		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == INT32_MAX && max_generation_ == INT32_MAX) {
 			throw std::invalid_argument("At least one of the following parameters must not be INT32_MAX: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
@@ -313,27 +312,21 @@ std::pair<Chromosome<T>, Chromosome<T>> TournamentSelection(std::vector<Chromoso
 
 	int tournament_size = static_cast<int>((*additional_parameters)["tournament_size"]);
 
-	//Chromosome<T> first_parent = RunTournament(population, tournament_size);
-	//Chromosome<T> second_parent = RunTournament(population, tournament_size);
-	//return std::pair<Chromosome<T>, Chromosome<T>>(first_parent, second_parent);
 	return std::pair<Chromosome<T>, Chromosome<T>>(RunTournament(population, tournament_size), RunTournament(population, tournament_size));
 }
 
 template<typename T>
 Chromosome<T> RunTournament(std::vector<Chromosome<T>>* population, int tournament_size) {
-	std::vector<Chromosome<T>> tournament = std::vector<Chromosome<T>>();
+	Chromosome<T> winner;
 
 	for (int i = 0; i < tournament_size; i++) {
-		tournament.push_back((*population)[random_int(0, population->size())]);
+		int random_index = random_int(0, population->size());
+		if (i == 0 || (*population)[random_index].fitness_ > winner.fitness_) {
+			winner = (*population)[random_index];
+		}
 	}
 
-	//Sort in descending order
-	sort(tournament.begin(), tournament.end(),
-		[](const auto& lhs, const auto& rhs) {
-		return lhs.fitness_ > rhs.fitness_;
-	});
-
-	return tournament[0];
+	return winner;
 }
 
 float OneMaxFitness(Chromosome<bool> chromosome, std::map<std::string, float>* additional_parameters) {
