@@ -41,15 +41,16 @@ public:
 
 	std::map<std::string, float>* additional_parameters_ = new std::map<std::string, float>();
 
+	int chromosome_length_ = 64;
+	int population_size_ = 300;
 	float mutation_probability_ = 0.1f;
 	float crossover_probability_ = 0.75f;
 	float recombination_rate_ = 0.5f;
+	float elitism_rate_ = 0.1f;
 
 	int max_fitness_evaluations_ = INT32_MAX;
 	int max_generations_ = INT32_MAX;
 	int target_fitness_ = INT32_MAX;
-	int chromosome_length_ = 64;
-	int population_size_ = 300;
 
 	~GeneticAlgorithm() {
 		if (additional_parameters_ != NULL) {
@@ -270,6 +271,8 @@ void BinaryRecombinate(Chromosome<bool>* current, const Parent<bool> parent, flo
 		int diff_index = diff[random_index];
 
 		current->genes_[diff_index] = !current->genes_[diff_index];
+
+		diff.erase(diff.begin() + random_index);
 	}
 }
 
@@ -311,7 +314,7 @@ float OneMaxFitness(Chromosome<bool> chromosome, std::map<std::string, float>* a
 	return fitness;
 }
 
-int RunTest() {
+int RunTest(float recombination_rate) {
 	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>();
 
 	ga.initialization_ = BinaryInitialization;
@@ -321,6 +324,8 @@ int RunTest() {
 	ga.recombination_ = BinaryRecombinate;
 	ga.fitness_ = OneMaxFitness;
 
+	ga.recombination_rate_ = recombination_rate;
+
 	ga.target_fitness_ = 0;
 
 	(*ga.additional_parameters_)["tournament_size"] = 3;
@@ -329,28 +334,35 @@ int RunTest() {
 	return ga.RunAlgorithm();
 }
 
+float Median(std::vector<int> vector) {
+	float median = 0;
+
+	if (vector.size() % 2 == 0) {
+		median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
+	}
+	else {
+		median = vector[(vector.size() - 1) / 2];
+	}
+
+	return median;
+}
+
 int main()
 {
 	srand(time(NULL));
 	
-	std::vector<int> evaluations = std::vector<int>();
+	std::vector<int> standard_evaluations = std::vector<int>();
 	for (int i = 0; i < 1000; i++) {
-		evaluations.push_back(RunTest());
+		standard_evaluations.push_back(RunTest(0.5f));
 		std::cout << i << std::endl;
 	}
 
-	std::sort(evaluations.begin(), evaluations.end());
+	std::sort(standard_evaluations.begin(), standard_evaluations.end());
 
-	float median = 0;
+	float standard_median = Median(standard_evaluations);
+	
 
-	if (evaluations.size() % 2 == 0) {
-		median = (evaluations[(evaluations.size() - 1) / 2] + evaluations[(evaluations.size() - 1) / 2 + 1]) / 2;
-	}
-	else {
-		median = evaluations[(evaluations.size() - 1) / 2];
-	}
-
-	std::cout << median << std::endl;
+	std::cout << standard_median << std::endl;
 	system("PAUSE");
 	return 0;
 }
