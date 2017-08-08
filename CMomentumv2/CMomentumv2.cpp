@@ -7,10 +7,12 @@
 #include <time.h>
 #include <vector>
 #include <algorithm>
+#include <string>
 #include <iostream>
 #include <functional>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 
 
@@ -45,8 +47,9 @@ public:
 	int population_size_ = 300;
 	float mutation_probability_ = 0.1f;
 	float crossover_probability_ = 0.75f;
-	float recombination_rate_ = 0.5f;
 	float elitism_rate_ = 0.1f;
+
+	float recombination_rate_ = 0.5f;
 
 	int max_fitness_evaluations_ = INT32_MAX;
 	int max_generation_ = INT32_MAX;
@@ -83,12 +86,6 @@ public:
 		}
 		if (fitness_function == NULL) {
 			throw std::invalid_argument("The parameter \"fitness_function\" must be defined.");
-		}
-	}
-
-	~GeneticAlgorithm() {
-		if (additional_parameters_ != NULL) {
-			delete additional_parameters_;
 		}
 	}
 
@@ -225,9 +222,9 @@ struct Parent {
 	}
 
 	Parent(std::vector<T> genes, float fitness)
-	: genes_(genes),
-	fitness_(fitness) {
-		
+		: genes_(genes),
+		fitness_(fitness) {
+
 	}
 };
 
@@ -253,7 +250,7 @@ void BitFlipMutation(Chromosome<bool>* chromosome, std::map<std::string, float>*
 	float gene_mutation_rate = (*additional_parameters)["gene_mutation_rate"];
 
 	for (int i = 0; i < chromosome->genes_.size(); i++) {
-		if (random_float() < gene_mutation_rate) { 
+		if (random_float() < gene_mutation_rate) {
 			chromosome->genes_[i] = !chromosome->genes_[i];
 		}
 	}
@@ -339,27 +336,10 @@ float OneMaxFitness(Chromosome<bool> chromosome, std::map<std::string, float>* a
 	return fitness;
 }
 
-int RunTest(float recombination_rate) {
-	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
-		BinaryInitialization,
-		TournamentSelection<bool>,
-		TwoPointCrossover<bool>,
-		BitFlipMutation,
-		BinaryRecombinate,
-		OneMaxFitness);
-
-	ga.recombination_rate_ = recombination_rate;
-
-	ga.target_fitness_ = 0;
-
-	(*ga.additional_parameters_)["tournament_size"] = 3;
-	(*ga.additional_parameters_)["gene_mutation_rate"] = 0.05f;
-
-	return ga.RunAlgorithm();
-}
-
 float Median(std::vector<int> vector) {
 	float median = 0;
+
+	std::sort(vector.begin(), vector.end());
 
 	if (vector.size() % 2 == 0) {
 		median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
@@ -371,22 +351,98 @@ float Median(std::vector<int> vector) {
 	return median;
 }
 
+float RunTest(GeneticAlgorithm<bool> ga, int test_size) {
+
+	std::vector<int> evaluations = std::vector<int>();
+
+	for (int i = 0; i < test_size; i++) {
+		evaluations.push_back(ga.RunAlgorithm());
+	}
+
+	return Median(evaluations);
+}
+
+void erase_writeln(std::string text) {
+	std::cout << text;
+	std::cout << std::string(text.length(), '\b');
+}
+
+//TODO: Memory leak per additional_parameters?
+
 int main()
 {
 	srand(time(NULL));
-	
-	std::vector<int> standard_evaluations = std::vector<int>();
-	for (int i = 0; i < 1000; i++) {
-		standard_evaluations.push_back(RunTest(0.5f));
-		std::cout << i << std::endl;
+
+	int test_size = 1000;
+
+	std::vector<int> population_sizes = { 100, 200, 300, 400, 500 };
+	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f, 0.25f };
+	std::vector<float> crossover_probabilities = { 0.5f, 0.6f, 0.7f, 0.8f };
+	std::vector<float> elitism_rates = { 0, 0.05f, 0.1f, 0.15f, 0.2f };
+
+	std::vector<int> tournament_sizes = { 2, 3, 4, 5, 6 };
+	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
+
+	std::vector<float> recombination_rates = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f };
+
+	int total_tests = population_sizes.size() * mutation_probabilities.size() *
+		crossover_probabilities.size() * elitism_rates.size() * tournament_sizes.size() *
+		gene_mutation_rates.size() * (recombination_rates.size() + 1);
+
+	int tests = 0;
+
+	std::vector<std::pair<GeneticAlgorithm<bool>, float>> normal_evaluations = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
+	std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_evaluations = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
+
+	for each(int population_size in population_sizes) {
+		for each(float mutation_probability in mutation_probabilities) {
+			for each(float crossover_probability in crossover_probabilities) {
+				for each(float elitism_rate in elitism_rates) {
+					for each(int tournament_size in tournament_sizes) {
+						for each (float gene_mutation_rate in gene_mutation_rates) {
+
+							GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
+								BinaryInitialization,
+								TournamentSelection<bool>,
+								TwoPointCrossover<bool>,
+								BitFlipMutation,
+								BinaryRecombinate,
+								OneMaxFitness);
+
+							ga.target_fitness_ = 0;
+
+							ga.population_size_ = population_size;
+							ga.mutation_probability_ = mutation_probability;
+							ga.crossover_probability_ = crossover_probability;
+							ga.elitism_rate_ = elitism_rate;
+							(*ga.additional_parameters_)["tournament_size"] = tournament_size;
+							(*ga.additional_parameters_)["gene_mutation_rate"] = gene_mutation_rate;
+
+							ga.recombination_rate_ = 0;
+
+							normal_evaluations.push_back(std::make_pair(ga, RunTest(ga, test_size)));
+							tests++;
+							erase_writeln("Progress: " + std::to_string(tests * 100 / total_tests) + "%");
+
+							for each (float recombination_rate in recombination_rates) {
+								ga.recombination_rate_ = recombination_rate;
+
+								optimised_evaluations.push_back(std::make_pair(ga, RunTest(ga, test_size)));
+								tests++;
+								erase_writeln("Progress: " + std::to_string(tests * 100 / total_tests) + "%");
+							}
+
+						}
+					}
+				}
+			}
+		}
 	}
 
-	std::sort(standard_evaluations.begin(), standard_evaluations.end());
+	//std::sort(standard_evaluations.begin(), standard_evaluations.end());
 
-	float standard_median = Median(standard_evaluations);
-	
+	//float standard_median = Median(standard_evaluations);
 
-	std::cout << standard_median << std::endl;
 	system("PAUSE");
 	return 0;
 }
