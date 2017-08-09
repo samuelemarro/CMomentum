@@ -2,9 +2,9 @@
 //
 
 #include "stdafx.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "stdio.h"
+#include "stdlib.h"
+#include "time.h"
 #include <vector>
 #include <algorithm>
 #include <string>
@@ -13,6 +13,10 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
+#include <fstream>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 int random_int(int min, int max) {
 	return min + rand() / (RAND_MAX / (max - min) + 1);
@@ -32,12 +36,12 @@ template<typename T>
 class GeneticAlgorithm {
 public:
 
-	const std::function<Chromosome<T>(int, std::map<std::string, float>*)> initialization_ = NULL;
-	const std::function<std::pair<Chromosome<T>, Chromosome<T>>(std::vector<Chromosome<T>>*, std::map<std::string, float>*)> selection_ = NULL;
-	const std::function<void(Chromosome<T>*, Chromosome<T>*, std::map<std::string, float>*)> crossover_ = NULL;
-	const std::function<void(Chromosome<T>*, std::map<std::string, float>*)> mutation_ = NULL;
-	const std::function<void(Chromosome<T>*, const Parent<T>, float, std::map<std::string, float>*)> recombination_ = NULL;
-	const std::function<float(Chromosome<T>, std::map<std::string, float>*)> fitness_function_ = NULL;
+	std::function<Chromosome<T>(int, std::map<std::string, float>*)> initialization_ = NULL;
+	std::function<std::pair<Chromosome<T>, Chromosome<T>>(std::vector<Chromosome<T>>*, std::map<std::string, float>*)> selection_ = NULL;
+	std::function<void(Chromosome<T>*, Chromosome<T>*, std::map<std::string, float>*)> crossover_ = NULL;
+	std::function<void(Chromosome<T>*, std::map<std::string, float>*)> mutation_ = NULL;
+	std::function<void(Chromosome<T>*, const Parent<T>, float, std::map<std::string, float>*)> recombination_ = NULL;
+	std::function<float(Chromosome<T>, std::map<std::string, float>*)> fitness_function_ = NULL;
 
 	std::map<std::string, float> additional_parameters_ = std::map<std::string, float>();
 
@@ -67,27 +71,11 @@ public:
 		recombination_(recombination),
 		fitness_function_(fitness_function)
 	{
-		if (initialization == NULL) {
-			throw std::invalid_argument("The parameter \"initialization\" must be defined.");
-		}
-		if (selection == NULL) {
-			throw std::invalid_argument("The parameter \"selection\" must be defined.");
-		}
-		if (crossover == NULL) {
-			throw std::invalid_argument("The parameter \"crossover\" must be defined.");
-		}
-		if (mutation == NULL) {
-			throw std::invalid_argument("The parameter \"mutation\" must be defined.");
-		}
-		if (recombination == NULL) {
-			throw std::invalid_argument("The parameter \"recombination\" must be defined.");
-		}
-		if (fitness_function == NULL) {
-			throw std::invalid_argument("The parameter \"fitness_function\" must be defined.");
-		}
+		CheckFunctions();
 	}
 
 	int RunAlgorithm() {
+		CheckFunctions();
 		CheckParameters();
 		int generation = 1;
 		int fitness_evaluations = 0;
@@ -210,13 +198,37 @@ public:
 		parameters += std::string("Elitism Rate: ") + std::to_string(elitism_rate_) + std::string("\n");
 		parameters += std::string("Recombination Rate: ") + std::to_string(recombination_rate_) + std::string("\n");
 
-		for (auto it = additional_parameters_->begin(); it != additional_parameters_->end(); it++) {
-			parameters += it->first + std::to_string(it->second) + std::string("\n");
+		if (additional_parameters_.size() != 0) {
+			parameters += "Additional Parameters:\n";
+		}
+
+		for (auto it = additional_parameters_.begin(); it != additional_parameters_.end(); it++) {
+			parameters += "-" + it->first + ": " + std::to_string(it->second) + std::string("\n");
 		}
 
 		return parameters;
 	}
 private:
+	void CheckFunctions() {
+		if (initialization_ == NULL) {
+			throw std::invalid_argument("The parameter \"initialization\" must be defined.");
+		}
+		if (selection_ == NULL) {
+			throw std::invalid_argument("The parameter \"selection\" must be defined.");
+		}
+		if (crossover_ == NULL) {
+			throw std::invalid_argument("The parameter \"crossover\" must be defined.");
+		}
+		if (mutation_ == NULL) {
+			throw std::invalid_argument("The parameter \"mutation\" must be defined.");
+		}
+		if (recombination_ == NULL) {
+			throw std::invalid_argument("The parameter \"recombination\" must be defined.");
+		}
+		if (fitness_function_ == NULL) {
+			throw std::invalid_argument("The parameter \"fitness_function\" must be defined.");
+		}
+	}
 	void CheckParameters() {
 		if (population_size_ % 2 != 0 || population_size_ < 2) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
@@ -407,19 +419,17 @@ std::vector<std::pair<GeneticAlgorithm<T>, float>> RunParallelTests(std::vector<
 	return results;
 }
 
-//TODO: Memory leak per additional_parameters?
-
 std::vector<GeneticAlgorithm<bool>> MakeGas() {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
-	std::vector<int> population_sizes = { 100/*, 200, 300*/ };
-	std::vector<float> mutation_probabilities = { 0.05f/*, 0.1f, 0.15f*/ };
-	std::vector<float> crossover_probabilities = { 0.5f/*, 0.6f, 0.7f, 0.8f*/ };
-	std::vector<float> elitism_rates = { 0, /*0.05f, 0.1f, 0.15f*/ };
+	std::vector<int> population_sizes = { 100, 200, 300 };
+	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
+	std::vector<float> crossover_probabilities = { 0.5f, 0.6f, 0.7f, 0.8f };
+	std::vector<float> elitism_rates = { 0, 0.05f, 0.1f, 0.15f };
 
-	std::vector<int> tournament_sizes = { 2/*, 3, 4, 5*/ };
-	std::vector<float> gene_mutation_rates = { 0.05f/*, 0.1f, 0.15f*/ };
+	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
+	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
 
 	for each(int population_size in population_sizes) {
 		for each(float mutation_probability in mutation_probabilities) {
@@ -446,8 +456,6 @@ std::vector<GeneticAlgorithm<bool>> MakeGas() {
 							ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
 
 							gas.push_back(ga);
-
-							//std::cout << ga.DumpParameters();
 						}
 					}
 				}
@@ -458,29 +466,77 @@ std::vector<GeneticAlgorithm<bool>> MakeGas() {
 	return gas;
 }
 
-int main()
+std::string FormatTime(std::time_t time_to_format, char* format) {
+	std::ostringstream oss;
+
+	std::tm tm = *std::localtime(&time_to_format);
+	oss << std::put_time(&tm, format);
+
+	return oss.str();
+}
+
+int main(int argc, char **argv)
 {
-	srand(time(NULL));
-	{
+	srand(time(nullptr));
+
+	std::string directory = argv[0];
+	directory.erase(directory.find_last_of('\\') + 1);
+
 	std::vector<GeneticAlgorithm<bool>> gas = MakeGas();
 
 	int test_size = 1;
 
-	std::vector<std::pair<GeneticAlgorithm<bool>, float>> normal_evaluations = RunParallelTests(gas, 0, test_size);
+	std::vector<std::pair<GeneticAlgorithm<bool>, float>> standard_evaluations = RunParallelTests(gas, 0, test_size);
 	std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_evaluations = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
-	for (float recombination_rate = 0.1f; recombination_rate < 0.2f/*1*/; recombination_rate += 0.1f) {
+
+
+	for (float recombination_rate = 0.1f; recombination_rate < 0.3f/*1*/; recombination_rate += 0.1f) {
 		std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_results = RunParallelTests(gas, recombination_rate, test_size);
 		for each(std::pair<GeneticAlgorithm<bool>, float> result in optimised_results) {
 			optimised_evaluations.push_back(result);
 		}
 	}
+
+	std::sort(standard_evaluations.begin(), standard_evaluations.end(),
+		[](const auto& lhs, const auto& rhs) {
+		return lhs.second < rhs.second;
+	});
+	std::sort(optimised_evaluations.begin(), optimised_evaluations.end(),
+		[](const auto& lhs, const auto& rhs) {
+		return lhs.second < rhs.second;
+	});
 	
+	
+	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 
-	//std::sort(standard_evaluations.begin(), standard_evaluations.end());
+	std::string file_path = directory + "GA Results " + finish_time + ".txt";
 
-	//float standard_median = Median(standard_evaluations);
+	std::ofstream result_file(file_path);
+
+	result_file << "BEST STANDARD (" << standard_evaluations[0].second << "):\n";
+	result_file << standard_evaluations[0].first.DumpParameters() << "\n";
+	result_file << "BEST OPTIMISED(" << optimised_evaluations[0].second << "):\n";
+	result_file << optimised_evaluations[0].first.DumpParameters() << "\n";
+
+	result_file << "====STANDARD CONFIGURATIONS====\n\n";
+
+	for (auto it = standard_evaluations.begin(); it != standard_evaluations.end(); ++it) {
+		int index = it - standard_evaluations.begin() + 1;
+		result_file << "Standard Configuration " << index << " (" << it->second << "):\n";
+		result_file << it->first.DumpParameters() << "\n";
 	}
-	//_CrtDumpMemoryLeaks();
+
+	result_file << "====OPTIMISED CONFIGURATIONS====\n\n";
+
+	for (auto it = optimised_evaluations.begin(); it != optimised_evaluations.end(); ++it) {
+		int index = it - optimised_evaluations.begin() + 1;
+		result_file << "Optimised Configuration " << index << " (" << it->second << "):\n";
+		result_file << it->first.DumpParameters() << "\n";
+	}
+	result_file.flush();
+	result_file.close();
+
+	system(("notepad.exe " + file_path).c_str());
 	system("PAUSE");
 	return 0;
 }

@@ -1,0 +1,44 @@
+BEST STANDARD (6200):
+Chromosome Length: 64
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.500000
+Elitism Rate: 0.000000
+Recombination Rate: 0.000000
+gene_mutation_rate0.050000
+tournament_size2.000000
+
+BEST OPTIMISED(6591):
+Chromosome Length: 64
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.500000
+Elitism Rate: 0.000000
+Recombination Rate: 0.100000
+gene_mutation_rate0.050000
+tournament_size2.000000
+
+====STANDARD CONFIGURATIONS====
+
+Standard Configuration 1 (6200):
+Chromosome Length: 64
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.500000
+Elitism Rate: 0.000000
+Recombination Rate: 0.000000
+gene_mutation_rate0.050000
+tournament_size2.000000
+
+====OPTIMISED CONFIGURATIONS====
+
+Standard Configuration 1 (6591):
+Chromosome Length: 64
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.500000
+Elitism Rate: 0.000000
+Recombination Rate: 0.100000
+gene_mutation_rate0.050000
+tournament_size2.000000
+
