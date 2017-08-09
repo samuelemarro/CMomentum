@@ -490,7 +490,7 @@ int main(int argc, char **argv)
 	std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_evaluations = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
 
 
-	for (float recombination_rate = 0.1f; recombination_rate < 0.3f/*1*/; recombination_rate += 0.1f) {
+	for (float recombination_rate = 0.1f; recombination_rate < 1; recombination_rate += 0.1f) {
 		std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_results = RunParallelTests(gas, recombination_rate, test_size);
 		for each(std::pair<GeneticAlgorithm<bool>, float> result in optimised_results) {
 			optimised_evaluations.push_back(result);
