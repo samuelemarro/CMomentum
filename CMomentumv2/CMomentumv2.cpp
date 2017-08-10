@@ -53,8 +53,8 @@ public:
 
 	float recombination_rate_ = 0.5f;
 
-	int max_fitness_evaluations_ = INT32_MAX;
-	int max_generation_ = INT32_MAX;
+	int max_fitness_evaluations_ = -1;
+	int max_generation_ = -1;
 	int target_fitness_ = INT32_MAX;
 
 	GeneticAlgorithm(
@@ -97,7 +97,9 @@ public:
 			return lhs.fitness_ > rhs.fitness_;
 		});
 
-		while (best_fitness < target_fitness_ && fitness_evaluations < max_fitness_evaluations_ && generation < max_generation_) {
+		while ((best_fitness < target_fitness_ || target_fitness_ == INT32_MAX) && 
+			(fitness_evaluations < max_fitness_evaluations_ || max_fitness_evaluations_ == -1) && 
+			(generation < max_generation_ || max_generation_ == -1)) {
 
 			std::vector<Chromosome<T>> offspring = std::vector<Chromosome<T>>();
 
@@ -233,8 +235,8 @@ private:
 		if (population_size_ % 2 != 0 || population_size_ < 2) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
 		}
-		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == INT32_MAX && max_generation_ == INT32_MAX) {
-			throw std::invalid_argument("At least one of the following parameters must not be INT32_MAX: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
+		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == -1 && max_generation_ == -1) {
+			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
 		}
 	}
 };
@@ -376,12 +378,17 @@ float Median(std::vector<int> vector) {
 	return median;
 }
 
-float RunTest(GeneticAlgorithm<bool> ga, int test_size) {
+template<typename T>
+float RunTest(GeneticAlgorithm<T> ga, int test_size, int cutoff_test, int cutoff_minimum) {
 
 	std::vector<int> evaluations = std::vector<int>();
 
-	for (int i = 0; i < test_size; i++) {
+	for (int i = 1; i <= test_size; i++) {
 		evaluations.push_back(ga.RunAlgorithm());
+
+		if (i == cutoff_test && Median(evaluations) > cutoff_minimum) {
+			break;
+		}
 	}
 
 	return Median(evaluations);
@@ -393,33 +400,31 @@ void erase_writeln(std::string text) {
 }
 
 template<typename T>
-std::vector<std::pair<GeneticAlgorithm<T>, float>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, float recombination_rate, int test_size) {
+std::vector<std::pair<GeneticAlgorithm<T>, float>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size, int cutoff_test, int cutoff_minimum) {
 
 	std::vector<std::pair<GeneticAlgorithm<T>, float>> results = std::vector<std::pair<GeneticAlgorithm<T>, float>>();
-
-	int gas_size = gas.size();
-
-	int completed_tests = 0;
-
+	int total_tests = gas.size();
+	int executed_tests = 0;
 #pragma omp parallel
 	{
 #pragma omp for
 		for (int i = 0; i < gas.size(); i++) {
-			//std::cout << i << std::endl;
 			GeneticAlgorithm<T> ga = gas[i];
-			ga.recombination_rate_ = recombination_rate;
 
-			results.push_back(std::make_pair(ga, RunTest(ga, test_size)));
-			completed_tests++;
-			if (completed_tests % std::max(1, gas_size / 100) == 0) {
-				erase_writeln("Progress: " + std::to_string(completed_tests * 100 / gas_size));
+			results.push_back(std::make_pair(ga, RunTest(ga, test_size, cutoff_test, cutoff_minimum)));
+			executed_tests++;
+			if (executed_tests % std::max(1, total_tests / 100) == 0) {
+				erase_writeln("Progress: " + std::to_string(executed_tests * 100 / total_tests) + "%");
 			}
 		}
 	}
+
+	std::cout << "\n";
+
 	return results;
 }
 
-std::vector<GeneticAlgorithm<bool>> MakeGas() {
+std::vector<GeneticAlgorithm<bool>> MakeGas(bool optimised) {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
@@ -438,24 +443,58 @@ std::vector<GeneticAlgorithm<bool>> MakeGas() {
 					for each(int tournament_size in tournament_sizes) {
 						for each (float gene_mutation_rate in gene_mutation_rates) {
 
-							GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
-								BinaryInitialization,
-								TournamentSelection<bool>,
-								TwoPointCrossover<bool>,
-								BitFlipMutation,
-								BinaryRecombinate,
-								OneMaxFitness);
+							if (optimised) {
+								for (float recombination_rate = 0.1f; recombination_rate < 1; recombination_rate += 0.1f) {
+									GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
+										BinaryInitialization,
+										TournamentSelection<bool>,
+										TwoPointCrossover<bool>,
+										BitFlipMutation,
+										BinaryRecombinate,
+										OneMaxFitness);
 
-							ga.target_fitness_ = 0;
+									ga.target_fitness_ = 0;
 
-							ga.population_size_ = population_size;
-							ga.mutation_probability_ = mutation_probability;
-							ga.crossover_probability_ = crossover_probability;
-							ga.elitism_rate_ = elitism_rate;
-							ga.additional_parameters_["tournament_size"] = tournament_size;
-							ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
+									ga.population_size_ = population_size;
+									ga.mutation_probability_ = mutation_probability;
+									ga.crossover_probability_ = crossover_probability;
+									ga.elitism_rate_ = elitism_rate;
 
-							gas.push_back(ga);
+									ga.additional_parameters_["tournament_size"] = tournament_size;
+									ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
+
+									ga.recombination_rate_ = recombination_rate;
+
+									ga.max_fitness_evaluations_ = 100000;
+
+									gas.push_back(ga);
+								}
+							}
+							else {
+								GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
+									BinaryInitialization,
+									TournamentSelection<bool>,
+									TwoPointCrossover<bool>,
+									BitFlipMutation,
+									BinaryRecombinate,
+									OneMaxFitness);
+
+								ga.target_fitness_ = 0;
+
+								ga.population_size_ = population_size;
+								ga.mutation_probability_ = mutation_probability;
+								ga.crossover_probability_ = crossover_probability;
+								ga.elitism_rate_ = elitism_rate;
+
+								ga.additional_parameters_["tournament_size"] = tournament_size;
+								ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
+
+								ga.recombination_rate_ = 0;
+
+								ga.max_fitness_evaluations_ = 100000;
+
+								gas.push_back(ga);
+							}
 						}
 					}
 				}
@@ -475,6 +514,39 @@ std::string FormatTime(std::time_t time_to_format, char* format) {
 	return oss.str();
 }
 
+template<typename T>
+std::pair<GeneticAlgorithm<T>, float> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination, int cutoff_tests, int cutoff_minimum) {
+
+	std::vector<std::pair<GeneticAlgorithm<bool>, float>> tournament = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
+	int tournament_size = gas.size();
+	int test_size = base_test_size;
+	int tournament_number = 1;
+
+	for each(GeneticAlgorithm<bool> ga in gas) {
+		tournament.push_back(std::make_pair(ga, 0));
+	}
+
+	std::pair<GeneticAlgorithm<T>, float> empty_pair = std::make_pair(gas[0], 0);
+
+	while (tournament_size > 0) {
+		std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
+
+		tournament = RunParallelTests(gas, test_size, (tournament_number == 1 ? cutoff_tests : -1), (tournament_number == 1 ? cutoff_minimum : 0));
+
+		std::sort(tournament.begin(), tournament.end(),
+			[](const auto& lhs, const auto& rhs) {
+			return lhs.second < rhs.second;
+		});
+
+		tournament.resize(tournament_size, empty_pair);
+
+		tournament_number++;
+		tournament_size = std::fmin(static_cast<float>(tournament_size) * (1 - tournament_elimination), tournament_size - 1);
+		test_size *= (1 + test_size_increase_rate);
+	}
+	return tournament[0];
+}
+
 int main(int argc, char **argv)
 {
 	srand(time(nullptr));
@@ -482,16 +554,50 @@ int main(int argc, char **argv)
 	std::string directory = argv[0];
 	directory.erase(directory.find_last_of('\\') + 1);
 
-	std::vector<GeneticAlgorithm<bool>> gas = MakeGas();
+	std::vector<GeneticAlgorithm<bool>> standard_gas = MakeGas(false);
+	std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeGas(true);
 
-	int test_size = 1;
+	int base_test_size = 20;
+	int cutoff_test = 5;
+	int cutoff_minimum = 15000;
+	float test_size_increase_rate = 2;
+	float elimination_rate = 0.9f;
 
-	std::vector<std::pair<GeneticAlgorithm<bool>, float>> standard_evaluations = RunParallelTests(gas, 0, test_size);
+	int final_test_size = 100000;
+
+	int executed_tests = 0;
+	std::cout << "Running Standard Test..." << std::endl;
+	std::pair<GeneticAlgorithm<bool>, float> best_standard = SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate, cutoff_test, cutoff_minimum);
+	
+	float best_standard_evaluations = RunTest(best_standard.first, final_test_size, -1, 0);
+	
+	std::cout << "Running Optimised Test..." << std::endl;
+	std::pair<GeneticAlgorithm<bool>, float> best_optimised = SelectBestConfiguration(optimised_gas, test_size, 2, 0.9f, cutoff_test, cutoff_minimum);
+
+	float best_optimised_evaluations = RunTest(best_optimised.first, final_test_size, -1, 0);
+
+	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
+	std::string file_path = directory + "GA Results " + finish_time + ".txt";
+
+	std::ofstream result_file(file_path);
+
+	result_file << "BEST STANDARD (" << best_standard_evaluations << "):\n";
+	result_file << best_standard.first.DumpParameters() << "\n";
+	result_file << "BEST OPTIMISED(" << best_optimised_evaluations << "):\n";
+	result_file << best_optimised.first.DumpParameters() << "\n";
+
+	result_file.flush();
+	result_file.close();
+
+	system(("notepad.exe " + file_path).c_str());
+
+	/*
+	std::vector<std::pair<GeneticAlgorithm<bool>, float>> standard_evaluations = RunParallelTests(gas, test_size, &executed_tests, total_tests, cutoff_test, cutoff_minimum);
+
 	std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_evaluations = std::vector<std::pair<GeneticAlgorithm<bool>, float>>();
 
-
 	for (float recombination_rate = 0.1f; recombination_rate < 1; recombination_rate += 0.1f) {
-		std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_results = RunParallelTests(gas, recombination_rate, test_size);
+		std::vector<std::pair<GeneticAlgorithm<bool>, float>> optimised_results = RunParallelTests(gas, test_size, &executed_tests, total_tests, cutoff_test, cutoff_minimum);
 		for each(std::pair<GeneticAlgorithm<bool>, float> result in optimised_results) {
 			optimised_evaluations.push_back(result);
 		}
@@ -505,9 +611,9 @@ int main(int argc, char **argv)
 		[](const auto& lhs, const auto& rhs) {
 		return lhs.second < rhs.second;
 	});
-	
-	
-	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
+	*/
+
+	/*std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 
 	std::string file_path = directory + "GA Results " + finish_time + ".txt";
 
@@ -533,10 +639,12 @@ int main(int argc, char **argv)
 		result_file << "Optimised Configuration " << index << " (" << it->second << "):\n";
 		result_file << it->first.DumpParameters() << "\n";
 	}
+	
 	result_file.flush();
 	result_file.close();
 
 	system(("notepad.exe " + file_path).c_str());
+	*/
 	system("PAUSE");
 	return 0;
 }
