@@ -572,7 +572,7 @@ int main(int argc, char **argv)
 	float best_standard_evaluations = RunTest(best_standard.first, final_test_size, -1, 0);
 	
 	std::cout << "Running Optimised Test..." << std::endl;
-	std::pair<GeneticAlgorithm<bool>, float> best_optimised = SelectBestConfiguration(optimised_gas, test_size, 2, 0.9f, cutoff_test, cutoff_minimum);
+	std::pair<GeneticAlgorithm<bool>, float> best_optimised = SelectBestConfiguration(optimised_gas, base_test_size, 2, 0.9f, cutoff_test, cutoff_minimum);
 
 	float best_optimised_evaluations = RunTest(best_optimised.first, final_test_size, -1, 0);
 
