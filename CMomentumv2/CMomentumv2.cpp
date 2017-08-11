@@ -338,12 +338,11 @@ void BinaryRecombinate(Chromosome<bool>& current, const Parent<bool>& parent, fl
 			diff.push_back(i);
 		}
 	}
-	int diff_size = diff.size();
 
-	int recombinations = static_cast<int>(recombination_rate * diff_size);
+	int recombinations = static_cast<int>(recombination_rate * diff.size());
 
 	for (int i = 0; i < recombinations; i++) {
-		int random_index = random_int(diff_size);
+		int random_index = random_int(diff.size());
 		int diff_index = diff[random_index];
 
 		current.genes_[diff_index] = !current.genes_[diff_index];
@@ -581,7 +580,7 @@ std::string FormatTime(std::time_t time_to_format, char* format) {
 }
 
 template<typename T>
-TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination, int cutoff_tests, int cutoff_minimum) {
+TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
 	std::vector<TestResult<T>> tournament = std::vector<TestResult<T>>();
 	int tournament_size = gas.size();
@@ -622,25 +621,21 @@ TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int 
 
 int main(int argc, char **argv)
 {
-	srand(time(nullptr));//Lasciarlo?
 	fast_srand(time(nullptr));
-
 	std::string directory = argv[0];
 	directory.erase(directory.find_last_of('\\') + 1);
 
 	std::vector<GeneticAlgorithm<bool>> standard_gas = MakeGas(false);
 	std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeGas(true);
 
-	int base_test_size = 1;
-	int cutoff_test = 5;
-	int cutoff_minimum = 15000;
+	int base_test_size = 100;
 	float test_size_increase_rate = 2;
 	float elimination_rate = 0.9f;
-
+	
 	int final_test_size = 100000;
 
 	std::cout << "Running Standard Exploration Test..." << std::endl;
-	TestResult<bool> best_standard = SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate, cutoff_test, cutoff_minimum);
+	TestResult<bool> best_standard = SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Standard Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_standard.ga_.DumpParameters() << std::endl;
@@ -649,7 +644,7 @@ int main(int argc, char **argv)
 	float best_standard_evaluations = RunTest(best_standard.ga_, final_test_size);
 
 	std::cout << "Running Optimised Exploration Test..." << std::endl;
-	TestResult<bool> best_optimised = SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, cutoff_test, cutoff_minimum);
+	TestResult<bool> best_optimised = SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Optimised Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_optimised.ga_.DumpParameters() << std::endl;
@@ -669,7 +664,7 @@ int main(int argc, char **argv)
 
 	result_file.flush();
 	result_file.close();
-
+	
 	system(("notepad.exe " + file_path).c_str());
 
 	system("PAUSE");
