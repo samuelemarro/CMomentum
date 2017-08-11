@@ -445,7 +445,7 @@ public:
 };
 
 template<typename T>
-std::vector<TestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size, int cutoff_test, int cutoff_minimum) {
+std::vector<TestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
 	std::vector<TestResult<T>> results = std::vector<TestResult<T>>();
 
@@ -593,7 +593,7 @@ TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int 
 	while (tournament_size > 1) {
 		std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
 
-		tournament = RunParallelTests(gas, test_size, (tournament_number == 1 ? cutoff_tests : -1), (tournament_number == 1 ? cutoff_minimum : 0));
+		tournament = RunParallelTests(gas, test_size);
 
 		//Sort in ascending order by executed evaluations
 		std::sort(tournament.begin(), tournament.end(),
