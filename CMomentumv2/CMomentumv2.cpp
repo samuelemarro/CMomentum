@@ -12,12 +12,10 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <unordered_map>
 #include <fstream>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
-#include "omp.h"
 
 static unsigned int g_seed;
 
