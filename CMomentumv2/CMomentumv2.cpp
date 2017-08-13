@@ -53,17 +53,31 @@ Chromosome<bool> BinaryInitialization(int length, std::map<std::string, float>& 
 	return c;
 }
 
-void BinaryRecombinate(Chromosome<bool>& current, const Parent<bool>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
+Chromosome<float> UniformInitialization(int length, std::map<std::string, float>& additional_parameters) {
+	float range_min = additional_parameters["range_min"];
+	float range_max = additional_parameters["range_max"];
 
+	Chromosome<float> c = Chromosome<float>();
+	c.genes_.reserve(length);
+
+	for (int i = 0; i < length; i++) {
+		c.genes_.push_back(FastRand::RandomFloat(range_min, range_max));
+	}
+}
+
+std::vector<int>& ComputeDiff(Chromosome<bool>& current, const Parent<bool>& parent) {
 	std::vector<int> diff = std::vector<int>();
 	int genes_size = current.genes_.size();
 	diff.reserve(genes_size);
-
 	for (int i = 0; i < genes_size; i++) {
 		if (current.genes_[i] != parent.genes_[i]) {
 			diff.push_back(i);
 		}
 	}
+}
+
+void BinaryRecombinate(Chromosome<bool>& current, const Parent<bool>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
+	std::vector<int>& diff = ComputeDiff(current, parent);
 
 	int recombinations = static_cast<int>(recombination_rate * diff.size());
 
@@ -75,6 +89,10 @@ void BinaryRecombinate(Chromosome<bool>& current, const Parent<bool>& parent, fl
 
 		diff.erase(diff.begin() + random_index);
 	}
+}
+
+void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
+	//TODO: Implementare
 }
 
 template<typename T>
@@ -107,6 +125,14 @@ float OneMaxFitness(Chromosome<bool>& chromosome, std::map<std::string, float>& 
 		if (!gene) {
 			fitness--;
 		}
+	}
+	return fitness;
+}
+
+float SphereFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	float fitness = 0;
+	for each(float gene in chromosome.genes_) {
+		fitness -= gene * gene;
 	}
 	return fitness;
 }
@@ -223,6 +249,11 @@ std::string FormatTime(std::time_t time_to_format, char* format) {
 	oss << std::put_time(&tm, format);
 
 	return oss.str();
+}
+
+template<typename T>
+void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<GeneticAlgorithm<T>> optimised_gas, int base_test_size, float test_size_increase_rate, float elimination_rate) {
+	//TODO: Mettere codice di main
 }
 
 int main(int argc, char **argv)

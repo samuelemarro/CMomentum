@@ -21,6 +21,12 @@ int FastRand::RandomInt(int min, int max) {
 float FastRand::RandomFloat() {
 	return (float)Generate() * rand_max_inverse;
 }
+float FastRand::RandomFloat(float max) {
+	return RandomFloat() * max;
+}
+float FastRand::RandomFloat(float min, float max) {
+	return min + RandomFloat() * (max - min);
+}
 
 //fastrand routine returns one integer, similar output value range as C lib.
 inline int FastRand::Generate()
