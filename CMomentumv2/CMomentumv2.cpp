@@ -16,287 +16,18 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <random>
 
-static unsigned int g_seed;
+#include "Core.h"
+#include "fast_rand.h"
 
-//Used to seed the generator.
-inline void fast_srand(int seed)
-{
-	g_seed = seed;
-}
-
-//fastrand routine returns one integer, similar output value range as C lib.
-inline int fastrand()
-{
-	g_seed = (214013 * g_seed + 2531011);
-
-	return (g_seed >> 16) & 0x7FFF;
-}
-
-
-int random_int(int max) {
-	return fastrand() % max;
-}
-
-float random_float() {
-	return (float)fastrand() / (float)RAND_MAX;
-}
-
-template<typename T>
-class Chromosome;
-
-template<typename T>
-struct Parent;
-
-template<typename T>
-class GeneticAlgorithm {
-public:
-
-	std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization_ = nullptr;
-	std::function<std::pair<Chromosome<T>*, Chromosome<T>*>(std::vector<std::unique_ptr<Chromosome<T>>>&, std::map<std::string, float>&)> selection_ = nullptr;
-	std::function<void(Chromosome<T>&, Chromosome<T>&, std::map<std::string, float>&)> crossover_ = nullptr;
-	std::function<void(Chromosome<T>&, std::map<std::string, float>&)> mutation_ = nullptr;
-	std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination_ = nullptr;
-	std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function_ = nullptr;
-
-	std::map<std::string, float> additional_parameters_ = std::map<std::string, float>();
-
-	int chromosome_length_ = 64;
-	int population_size_ = 300;
-	float mutation_probability_ = 0.1f;
-	float crossover_probability_ = 0.75f;
-	float elitism_rate_ = 0.1f;
-
-	float recombination_rate_ = 0.5f;
-
-	int max_fitness_evaluations_ = -1;
-	int max_generation_ = -1;
-	int target_fitness_ = INT32_MAX;
-
-	GeneticAlgorithm(
-		std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization,
-		std::function<std::pair<Chromosome<T>*, Chromosome<T>*>(std::vector<std::unique_ptr<Chromosome<T>>>&, std::map<std::string, float>&)> selection,
-		std::function<void(Chromosome<T>&, Chromosome<T>&, std::map<std::string, float>&)> crossover,
-		std::function<void(Chromosome<T>&, std::map<std::string, float>&)> mutation,
-		std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination,
-		std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function)
-		: initialization_(initialization),
-		selection_(selection),
-		crossover_(crossover),
-		mutation_(mutation),
-		recombination_(recombination),
-		fitness_function_(fitness_function)
-	{
-		CheckFunctions();
-	}
-
-	int RunAlgorithm() {
-		CheckFunctions();
-		CheckParameters();
-		int generation = 1;
-		int fitness_evaluations = 0;
-		float best_fitness = INT32_MIN;
-
-		//Create the initial population
-		std::vector<std::unique_ptr<Chromosome<T>>> population = std::vector<std::unique_ptr<Chromosome<T>>>();
-		population.reserve(population_size_);
-
-		for (int i = 0; i < population_size_; i++) {
-			Chromosome<T>* chromosome = new Chromosome<T>(initialization_(chromosome_length_, additional_parameters_));
-			chromosome->fitness_ = fitness_function_((*chromosome), additional_parameters_);
-			chromosome->fitness_is_valid_ = true;
-			population.push_back(std::unique_ptr<Chromosome<T>>(chromosome));
-		}
-
-		//Sort the population by fitness in descending order
-		sort(population.begin(), population.end(),
-			[](const auto& lhs, const auto& rhs) {
-			return lhs->fitness_ > rhs->fitness_;
-		});
-
-		while ((best_fitness < target_fitness_ || target_fitness_ == INT32_MAX) &&
-			(fitness_evaluations < max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
-			(generation < max_generation_ || max_generation_ == -1)) {
-
-			std::vector<std::unique_ptr<Chromosome<T>>> offspring = std::vector<std::unique_ptr<Chromosome<T>>>();
-			offspring.reserve(population_size_);
-
-			//Compute the elitism size (flooring to multiples of two) 
-			int elitism_size = population_size_ * elitism_rate_;
-
-			if (elitism_size % 2 == 1) {
-				elitism_size--;
-			}
-
-			for (int i = 0; i < elitism_size; i++) {
-				Chromosome<T>* parent = new Chromosome<T>(*population[i]);
-				offspring.push_back(std::unique_ptr<Chromosome<T>>(parent));
-			}
-
-			for (int i = 0; i < population_size_ - elitism_size; i += 2) {
-				std::pair<Chromosome<T>*, Chromosome<T>*> parents = selection_(population, additional_parameters_);
-
-				//Copy the parents
-				Chromosome<T>* child1 = new Chromosome<T>(*parents.first);
-				Chromosome<T>* child2 = new Chromosome<T>(*parents.second);
-
-				if (random_float() < crossover_probability_) {
-					crossover_(*child1, *child2, additional_parameters_);
-
-					child1->parent1_ = Parent<T>(parents.first->genes_, parents.first->fitness_);
-					child1->parent2_ = Parent<T>(parents.second->genes_, parents.second->fitness_);
-					child2->parent1_ = Parent<T>(parents.first->genes_, parents.first->fitness_);
-					child2->parent2_ = Parent<T>(parents.second->genes_, parents.second->fitness_);
-
-					child1->has_parents_ = true;
-					child2->has_parents_ = true;
-
-					child1->fitness_is_valid_ = false;
-					child2->fitness_is_valid_ = false;
-				}
-				offspring.push_back(std::unique_ptr<Chromosome<T>>(child1));
-				offspring.push_back(std::unique_ptr<Chromosome<T>>(child2));
-			}
-
-			for (auto& chromosome : offspring)
-			{
-				if (random_float() < mutation_probability_) {
-					mutation_(*chromosome, additional_parameters_);
-					chromosome->fitness_is_valid_ = false;
-				}
-
-				if (!chromosome->fitness_is_valid_) {
-					chromosome->fitness_ = fitness_function_(*chromosome, additional_parameters_);
-					chromosome->fitness_is_valid_ = true;
-
-					fitness_evaluations++;
-
-					if (chromosome->has_parents_) {
-						//If both parents are eligible, pick one randomly
-						if (chromosome->fitness_ < chromosome->parent1_.fitness_ && chromosome->fitness_ < chromosome->parent2_.fitness_)
-						{
-							if (random_float() < 0.5f) {
-								recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
-							}
-							else {
-								recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
-							}
-						}
-						else if (chromosome->fitness_ < chromosome->parent1_.fitness_) {
-							recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
-						}
-						else if (chromosome->fitness_ < chromosome->parent2_.fitness_) {
-							recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
-						}
-					}
-				}
-			}
-			population = std::move(offspring);
-
-			//Sort the population by fitness in descending order
-			sort(population.begin(), population.end(),
-				[](const auto& lhs, const auto& rhs) {
-				return lhs->fitness_ > rhs->fitness_;
-			});
-
-			best_fitness = population[0]->fitness_;
-
-			generation++;
-		}
-
-		return fitness_evaluations;
-	}
-
-	std::string DumpParameters() {
-		std::string parameters = "";
-
-		parameters += std::string("Chromosome Length: ") + std::to_string(chromosome_length_) + std::string("\n");
-		parameters += std::string("Population Size: ") + std::to_string(population_size_) + std::string("\n");
-		parameters += std::string("Mutation Probability: ") + std::to_string(mutation_probability_) + std::string("\n");
-		parameters += std::string("Crossover Probability: ") + std::to_string(crossover_probability_) + std::string("\n");
-		parameters += std::string("Elitism Rate: ") + std::to_string(elitism_rate_) + std::string("\n");
-		parameters += std::string("Recombination Rate: ") + std::to_string(recombination_rate_) + std::string("\n");
-
-		if (additional_parameters_.size() != 0) {
-			parameters += "Additional Parameters:\n";
-		}
-
-		for (auto it = additional_parameters_.begin(); it != additional_parameters_.end(); it++) {
-			parameters += "-" + it->first + ": " + std::to_string(it->second) + std::string("\n");
-		}
-
-		return parameters;
-	}
-private:
-	void CheckFunctions() {
-		if (initialization_ == NULL) {
-			throw std::invalid_argument("The parameter \"initialization\" must be defined.");
-		}
-		if (selection_ == NULL) {
-			throw std::invalid_argument("The parameter \"selection\" must be defined.");
-		}
-		if (crossover_ == NULL) {
-			throw std::invalid_argument("The parameter \"crossover\" must be defined.");
-		}
-		if (mutation_ == NULL) {
-			throw std::invalid_argument("The parameter \"mutation\" must be defined.");
-		}
-		if (recombination_ == NULL) {
-			throw std::invalid_argument("The parameter \"recombination\" must be defined.");
-		}
-		if (fitness_function_ == NULL) {
-			throw std::invalid_argument("The parameter \"fitness_function\" must be defined.");
-		}
-	}
-	void CheckParameters() {
-		if (population_size_ % 2 != 0 || population_size_ < 2) {
-			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
-		}
-		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == -1 && max_generation_ == -1) {
-			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
-		}
-	}
-};
-
-template<typename T>
-struct Parent {
-	std::vector<T> genes_;
-	float fitness_ = 0;
-
-	Parent() {
-
-	}
-
-	Parent(std::vector<T> genes, float fitness)
-		: genes_(genes),
-		fitness_(fitness) {
-
-	}
-};
-
-template<typename T>
-class Chromosome {
-public:
-
-	Parent<T> parent1_;
-	Parent<T> parent2_;
-	float fitness_ = 0;
-	bool fitness_is_valid_ = false;
-	bool has_parents_ = false;
-	std::vector<T> genes_;
-
-	Chromosome() {
-
-	}
-
-	Chromosome(const Chromosome& c) = default;
-};
+std::uniform_int_distribution<int> binary_distribution(0, 2);
 
 void BitFlipMutation(Chromosome<bool>& chromosome, std::map<std::string, float>& additional_parameters) {
 	float gene_mutation_rate = additional_parameters["gene_mutation_rate"];
-
+	
 	for (int i = 0; i < chromosome.genes_.size(); i++) {
-		if (random_float() < gene_mutation_rate) {
+		if (FastRand::RandomFloat() < gene_mutation_rate) {
 			chromosome.genes_[i] = !chromosome.genes_[i];
 		}
 	}
@@ -304,8 +35,8 @@ void BitFlipMutation(Chromosome<bool>& chromosome, std::map<std::string, float>&
 
 template<typename T>
 void TwoPointCrossover(Chromosome<T>& parent1, Chromosome<T>& parent2, std::map<std::string, float>& additional_parameters) {
-	int pos1 = random_int(parent1.genes_.size());
-	int pos2 = random_int(parent2.genes_.size());
+	int pos1 = FastRand::RandomInt(parent1.genes_.size());
+	int pos2 = FastRand::RandomInt(parent2.genes_.size());
 
 	//Make sure that pos2 > pos1
 	if (pos1 > pos2)
@@ -322,7 +53,7 @@ Chromosome<bool> BinaryInitialization(int length, std::map<std::string, float>& 
 	Chromosome<bool> c = Chromosome<bool>();
 	c.genes_.reserve(length);
 	for (int i = 0; i < length; i++) {
-		c.genes_.push_back(random_int(2));
+		c.genes_.push_back(FastRand::RandomInt(2));
 	}
 	return c;
 }
@@ -342,7 +73,7 @@ void BinaryRecombinate(Chromosome<bool>& current, const Parent<bool>& parent, fl
 	int recombinations = static_cast<int>(recombination_rate * diff.size());
 
 	for (int i = 0; i < recombinations; i++) {
-		int random_index = random_int(diff.size());
+		int random_index = FastRand::RandomInt(diff.size());
 		int diff_index = diff[random_index];
 
 		current.genes_[diff_index] = !current.genes_[diff_index];
@@ -363,10 +94,10 @@ template<typename T>
 Chromosome<T>* RunTournament(std::vector<std::unique_ptr<Chromosome<T>>>& population, int tournament_size) {
 	int population_size = population.size();
 
-	std::unique_ptr<Chromosome<T>>* winner = &population[random_int(population_size)];
+	std::unique_ptr<Chromosome<T>>* winner = &population[FastRand::RandomInt(population_size)];
 
 	for (int i = 1; i < tournament_size; i++) {
-		int random_index = random_int(population_size);
+		int random_index = FastRand::RandomInt(population_size);
 		if (population[random_index]->fitness_ > (*winner)->fitness_) {
 			winner = &population[random_index];
 		}
@@ -424,6 +155,9 @@ float RunTest(GeneticAlgorithm<T> ga, int test_size) {
 			}
 		}
 	}
+
+	std::cout << "\n";
+
 	return Median(evaluations);
 }
 
@@ -489,7 +223,7 @@ std::vector<TestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas
 	return results;
 }
 
-std::vector<GeneticAlgorithm<bool>> MakeGas(bool optimised) {
+std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
@@ -520,6 +254,8 @@ std::vector<GeneticAlgorithm<bool>> MakeGas(bool optimised) {
 
 									ga.target_fitness_ = 0;
 
+									ga.chromosome_length_ = 128;
+
 									ga.population_size_ = population_size;
 									ga.mutation_probability_ = mutation_probability;
 									ga.crossover_probability_ = crossover_probability;
@@ -543,6 +279,8 @@ std::vector<GeneticAlgorithm<bool>> MakeGas(bool optimised) {
 									BitFlipMutation,
 									BinaryRecombinate,
 									OneMaxFitness);
+
+								ga.chromosome_length_ = 128;
 
 								ga.target_fitness_ = 0;
 
@@ -621,15 +359,15 @@ TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int 
 
 int main(int argc, char **argv)
 {
-	fast_srand(time(nullptr));
+	FastRand::Seed(time(nullptr));
 	std::string directory = argv[0];
 	directory.erase(directory.find_last_of('\\') + 1);
 
-	std::vector<GeneticAlgorithm<bool>> standard_gas = MakeGas(false);
-	std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeGas(true);
+	std::vector<GeneticAlgorithm<bool>> standard_gas = MakeOneMaxGas(false);
+	std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeOneMaxGas(true);
 
-	int base_test_size = 100;
-	float test_size_increase_rate = 2;
+	int base_test_size = 40;
+	float test_size_increase_rate = 2.5f;
 	float elimination_rate = 0.9f;
 	
 	int final_test_size = 100000;
@@ -639,18 +377,22 @@ int main(int argc, char **argv)
 
 	std::cout << "Standard Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_standard.ga_.DumpParameters() << std::endl;
-	std::cout << "Running Standard Major Test..." << std::endl;
+	std::cout << "Running Standard Main Test..." << std::endl;
 
 	float best_standard_evaluations = RunTest(best_standard.ga_, final_test_size);
+
+	std::cout << "Standard Main Test finished! Evaluations: " << std::to_string(best_standard_evaluations) << std::endl;
 
 	std::cout << "Running Optimised Exploration Test..." << std::endl;
 	TestResult<bool> best_optimised = SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Optimised Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_optimised.ga_.DumpParameters() << std::endl;
-	std::cout << "Running Optimised Major Test..." << std::endl;
+	std::cout << "Running Optimised Main Test..." << std::endl;
 
 	float best_optimised_evaluations = RunTest(best_optimised.ga_, final_test_size);
+
+	std::cout << "Optimised Main Test finished! Evaluations: " << std::to_string(best_optimised_evaluations) << std::endl;
 
 	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 	std::string file_path = directory + "GA Results " + finish_time + ".txt";
