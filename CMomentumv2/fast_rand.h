@@ -1,5 +1,5 @@
 #pragma once
-class FastRand {
+static class FastRand {
 public:
 	//Used to seed the generator.
 	static void Seed(unsigned int seed);

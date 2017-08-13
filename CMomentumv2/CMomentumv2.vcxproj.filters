@@ -30,6 +30,9 @@
     <ClInclude Include="fast_rand.h">
       <Filter>File di origine</Filter>
     </ClInclude>
+    <ClInclude Include="TestSuite.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

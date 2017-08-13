@@ -3,25 +3,20 @@
 
 #include "stdafx.h"
 #include "stdio.h"
-#include "stdlib.h"
 #include "time.h"
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <iostream>
-#include <functional>
 #include <map>
-#include <memory>
 #include <fstream>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
-#include <random>
 
 #include "Core.h"
 #include "fast_rand.h"
-
-std::uniform_int_distribution<int> binary_distribution(0, 2);
+#include "TestSuite.h"
 
 void BitFlipMutation(Chromosome<bool>& chromosome, std::map<std::string, float>& additional_parameters) {
 	float gene_mutation_rate = additional_parameters["gene_mutation_rate"];
@@ -131,96 +126,9 @@ float Median(std::vector<int> vector) {
 	return median;
 }
 
-template<typename T>
-float RunTest(GeneticAlgorithm<T> ga, int test_size) {
-
-	std::vector<int> evaluations = std::vector<int>();
-
-	int executed_tests = 0;
-
-#pragma omp parallel
-	{
-#pragma omp for
-		for (int i = 1; i <= test_size; i++) {
-			float evaluation = ga.RunAlgorithm();
-#pragma omp critical
-			{
-				evaluations.push_back(evaluation);
-			}
-
-			executed_tests++;
-			int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
-			if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
-				erase_writeln("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
-			}
-		}
-	}
-
-	std::cout << "\n";
-
-	return Median(evaluations);
-}
-
 void erase_writeln(std::string text) {
 	std::cout << text;
 	std::cout << std::string(text.length(), '\b');
-}
-
-template<typename T>
-struct TestResult {
-public:
-	std::vector<int> evaluations_;
-	GeneticAlgorithm<T> ga_;
-	float median_ = INT32_MIN;
-
-	TestResult(GeneticAlgorithm<T> ga, int evaluations_size) : ga_(ga) {
-		evaluations_.reserve(evaluations_size);
-	}
-};
-
-template<typename T>
-std::vector<TestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
-
-	std::vector<TestResult<T>> results = std::vector<TestResult<T>>();
-
-	for (int i = 0; i < gas.size(); i++) {
-		results.push_back(TestResult<T>(gas[i], test_size));
-	}
-
-	int gas_size = gas.size();
-
-	int total_tests = gas.size() * test_size;
-	int executed_tests = 0;
-#pragma omp parallel
-	{
-#pragma omp for
-		for (int i = 0; i < gas_size * test_size; i++) {
-			int ga_index = i % gas_size;
-			GeneticAlgorithm<T> ga = gas[ga_index];
-
-			float evaluation = ga.RunAlgorithm();
-
-#pragma omp critical
-			{
-				results[ga_index].evaluations_.push_back(evaluation);
-			}
-
-			executed_tests++;
-			int executed_tests_copy = executed_tests; //Local variable used to prevent race conditions
-			if (executed_tests_copy % std::max(1, total_tests / 100) == 0) {
-				erase_writeln("Progress: " + std::to_string(executed_tests_copy * 100 / total_tests) + "%");
-			}
-		}
-	}
-
-	for (int i = 0; i < results.size(); i++)
-	{
-		results[i].median_ = Median(results[i].evaluations_);
-	}
-
-	std::cout << "\n";
-
-	return results;
 }
 
 std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
@@ -317,46 +225,6 @@ std::string FormatTime(std::time_t time_to_format, char* format) {
 	return oss.str();
 }
 
-template<typename T>
-TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
-
-	std::vector<TestResult<T>> tournament = std::vector<TestResult<T>>();
-	int tournament_size = gas.size();
-	int test_size = base_test_size;
-	int tournament_number = 1;
-
-	//tournament.resize requires an object to use in case the vector's size is increased (which is not going to happen)
-	TestResult<T> empty_test = TestResult<T>(TestResult<T>(gas[0], 0));
-
-	while (tournament_size > 1) {
-		std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
-
-		tournament = RunParallelTests(gas, test_size);
-
-		//Sort in ascending order by executed evaluations
-		std::sort(tournament.begin(), tournament.end(),
-			[](const auto& lhs, const auto& rhs) {
-			return lhs.median_ < rhs.median_;
-		});
-
-		//If the tournament size doesn't change (due to rounding), the tournament size is reduced by 1. The tournament size must also be at least 1.
-		tournament_size = std::max(1, std::min(static_cast<int>(static_cast<float>(tournament_size) * (1 - tournament_elimination)), tournament_size - 1));
-		test_size *= (1 + test_size_increase_rate);
-
-		//The first tournament will be resized to the same size as before
-		tournament.resize(tournament_size, empty_test);
-
-		gas.clear();
-		gas.reserve(tournament_size);
-		for (int i = 0; i < tournament_size; i++) {
-			gas.push_back(tournament[i].ga_);
-		}
-
-		tournament_number++;
-	}
-	return tournament[0];
-}
-
 int main(int argc, char **argv)
 {
 	FastRand::Seed(time(nullptr));
@@ -373,24 +241,24 @@ int main(int argc, char **argv)
 	int final_test_size = 100000;
 
 	std::cout << "Running Standard Exploration Test..." << std::endl;
-	TestResult<bool> best_standard = SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate);
+	TestResult<bool> best_standard = TestSuite<bool>::SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Standard Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_standard.ga_.DumpParameters() << std::endl;
 	std::cout << "Running Standard Main Test..." << std::endl;
 
-	float best_standard_evaluations = RunTest(best_standard.ga_, final_test_size);
+	float best_standard_evaluations = TestSuite<bool>::RunTest(best_standard.ga_, final_test_size);
 
 	std::cout << "Standard Main Test finished! Evaluations: " << std::to_string(best_standard_evaluations) << std::endl;
 
 	std::cout << "Running Optimised Exploration Test..." << std::endl;
-	TestResult<bool> best_optimised = SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
+	TestResult<bool> best_optimised = TestSuite<bool>::SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Optimised Exploration Test completed! Winner: " << std::endl;
 	std::cout << best_optimised.ga_.DumpParameters() << std::endl;
 	std::cout << "Running Optimised Main Test..." << std::endl;
 
-	float best_optimised_evaluations = RunTest(best_optimised.ga_, final_test_size);
+	float best_optimised_evaluations = TestSuite<bool>::RunTest(best_optimised.ga_, final_test_size);
 
 	std::cout << "Optimised Main Test finished! Evaluations: " << std::to_string(best_optimised_evaluations) << std::endl;
 
