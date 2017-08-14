@@ -62,7 +62,7 @@ public:
 
 	int max_fitness_evaluations_ = -1;
 	int max_generation_ = -1;
-	int target_fitness_ = INT32_MAX;
+	float target_fitness_ = FLT_MAX;
 
 	GeneticAlgorithm(
 		std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization,

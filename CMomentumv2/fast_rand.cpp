@@ -2,8 +2,6 @@
 #include "fast_rand.h"
 #include <stdlib.h>
 
-static const float rand_max_inverse = 1 / RAND_MAX;
-
 static unsigned int g_seed;
 
 //Used to seed the generator.
@@ -19,7 +17,7 @@ int FastRand::RandomInt(int min, int max) {
 }
 
 float FastRand::RandomFloat() {
-	return (float)Generate() * rand_max_inverse;
+	return (float)Generate() / RAND_MAX;
 }
 float FastRand::RandomFloat(float max) {
 	return RandomFloat() * max;

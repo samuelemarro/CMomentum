@@ -46,7 +46,7 @@ public:
 				executed_tests++;
 				int executed_tests_copy = executed_tests; //Local variable used to prevent race conditions
 				if (executed_tests_copy % std::max(1, total_tests / 100) == 0) {
-					erase_writeln("Progress: " + std::to_string(executed_tests_copy * 100 / total_tests) + "%");
+					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / total_tests) + "%");
 				}
 			}
 		}
@@ -79,7 +79,7 @@ public:
 				executed_tests++;
 				int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
 				if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
-					erase_writeln("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
+					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
 				}
 			}
 		}
@@ -125,5 +125,24 @@ public:
 			tournament_number++;
 		}
 		return tournament[0];
+	}
+private:
+	static float Median(std::vector<int> vector) {
+		float median = 0;
+
+		std::sort(vector.begin(), vector.end());
+
+		if (vector.size() % 2 == 0) {
+			median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
+		}
+		else {
+			median = vector[(vector.size() - 1) / 2];
+		}
+
+		return median;
+	}
+	static void EraseWriteLine(std::string text) {
+		std::cout << text;
+		std::cout << std::string(text.length(), '\b');
 	}
 };
