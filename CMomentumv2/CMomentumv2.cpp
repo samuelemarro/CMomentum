@@ -13,6 +13,8 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
+#include <math.h>
 
 #include "Core.h"
 #include "fast_rand.h"
@@ -58,6 +60,20 @@ void TwoPointCrossover(Chromosome<T>& parent1, Chromosome<T>& parent2, std::map<
 	}
 }
 
+void IntermediateCrossover(Chromosome<float>& parent1, Chromosome<float>& parent2, std::map<std::string, float>& additional_parameters) {
+	float ratio = additional_parameters["crossover_ratio"];
+	for (int i = 0; i < parent1.genes_.size(); i++) {
+		float random1 = FastRand::RandomFloat(-ratio, 1 + ratio);
+		float random2 = FastRand::RandomFloat(-ratio, 1 + ratio);
+
+		float parent1_gene = parent1.genes_[i];
+		float parent2_gene = parent2.genes_[i];
+
+		parent1.genes_[i] = parent1_gene * random1 + parent2_gene * (1 - random1);
+ 		parent2.genes_[i] = parent1_gene * random2 + parent2_gene * (1 - random2);
+	}
+}
+
 Chromosome<bool> BinaryInitialization(int length, std::map<std::string, float>& additional_parameters) {
 	Chromosome<bool> c = Chromosome<bool>();
 	c.genes_.reserve(length);
@@ -97,7 +113,7 @@ void BinaryRecombination(Chromosome<bool>& current, const Parent<bool>& parent, 
 	if (recombination_rate != 0) {
 		std::vector<int> diff = ComputeDiff(current, parent);
 
-		int recombinations = static_cast<int>(recombination_rate * diff.size());
+		int recombinations = FastRand::PolinomialInt(recombination_rate, diff.size());
 
 		for (int i = 0; i < recombinations; i++) {
 			int random_index = FastRand::RandomInt(diff.size());
@@ -116,7 +132,7 @@ void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& pa
 		float range_min = additional_parameters["range_min"];
 		float range_max = additional_parameters["range_max"];
 		float mutation_size = additional_parameters["relative_mutation_size"] * (range_max - range_min);
-		int recombinations = static_cast<int>(recombination_rate * diff.size());
+		int recombinations = FastRand::PolinomialInt(recombination_rate, diff.size());
 
 		for (int i = 0; i < recombinations; i++) {
 			int random_index = FastRand::RandomInt(diff.size());
@@ -169,6 +185,19 @@ float SphereFitness(Chromosome<float>& chromosome, std::map<std::string, float>&
 		fitness -= gene * gene;
 	}
 	return fitness;
+}
+
+//TODO: Debuggare
+float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	float sum = 0;
+	float product = 1;
+
+	for (int i = 0; i < chromosome.genes_.size(); i++) {
+		sum += chromosome.genes_[i] * chromosome.genes_[i];
+		product *= std::cos(chromosome.genes_[i] / std::sqrt(i + 1));
+	}
+
+	return -(sum / 4000 - product + 1);
 }
 
 std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
@@ -256,7 +285,7 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
 	return gas;
 }
 
-std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised) {
+std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised, int chromosome_length, float bound) {
 	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
 
 	std::vector<int> population_sizes = { 100, 200, 300 };
@@ -267,6 +296,8 @@ std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised) {
 	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
 	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
 	std::vector<float> relative_mutation_sizes = { 0.05f, 0.1f, 0.2f };
+
+	std::vector<float> crossover_ratios = { 0, 0.25f };
 
 	std::vector<float> recombination_rates;
 	if (optimised) {
@@ -283,36 +314,113 @@ std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised) {
 					for each(int tournament_size in tournament_sizes) {
 						for each (float gene_mutation_rate in gene_mutation_rates) {
 							for each(float relative_mutation_size in relative_mutation_sizes) {
-								for each (float recombination_rate in recombination_rates) {
-									GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
-										UniformInitialization,
-										TournamentSelection<float>,
-										TwoPointCrossover<float>,
-										RealValuedMutation,
-										RealValuedRecombination,
-										SphereFitness);
+								for each(float crossover_ratio in crossover_ratios) {
+									for each (float recombination_rate in recombination_rates) {
+										GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
+											UniformInitialization,
+											TournamentSelection<float>,
+											IntermediateCrossover,
+											RealValuedMutation,
+											RealValuedRecombination,
+											SphereFitness);
 
-									ga.target_fitness_ = 0.001f;
+										ga.target_fitness_ = -0.001f;
 
-									ga.chromosome_length_ = 10;
+										ga.chromosome_length_ = chromosome_length;
 
-									ga.population_size_ = population_size;
-									ga.mutation_probability_ = mutation_probability;
-									ga.crossover_probability_ = crossover_probability;
-									ga.elitism_rate_ = elitism_rate;
+										ga.population_size_ = population_size;
+										ga.mutation_probability_ = mutation_probability;
+										ga.crossover_probability_ = crossover_probability;
+										ga.elitism_rate_ = elitism_rate;
 
-									ga.additional_parameters_["range_min"] = -5.12f;
-									ga.additional_parameters_["range_max"] = 5.12f;
+										ga.additional_parameters_["range_min"] = -bound;
+										ga.additional_parameters_["range_max"] = bound;
 
-									ga.additional_parameters_["tournament_size"] = tournament_size;
-									ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
-									ga.additional_parameters_["relative_mutation_size"] = relative_mutation_size;
+										ga.additional_parameters_["tournament_size"] = tournament_size;
+										ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
+										ga.additional_parameters_["relative_mutation_size"] = relative_mutation_size;
+										ga.additional_parameters_["crossover_ratio"] = crossover_ratio;
 
-									ga.recombination_rate_ = recombination_rate;
+										ga.recombination_rate_ = recombination_rate;
 
-									ga.max_fitness_evaluations_ = 100000;
+										ga.max_fitness_evaluations_ = 100000;
 
-									gas.push_back(ga);
+										gas.push_back(ga);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return gas;
+}
+
+std::vector<GeneticAlgorithm<float>> MakeGriewankGas(bool optimised, int chromosome_length, float bound) {
+	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
+
+	std::vector<int> population_sizes = { 100, 200, 300 };
+	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
+	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
+	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
+
+	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
+	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
+	std::vector<float> relative_mutation_sizes = { 0.05f, 0.1f, 0.2f };
+
+	std::vector<float> crossover_ratios = { 0, 0.25f };
+
+	std::vector<float> recombination_rates;
+	if (optimised) {
+		recombination_rates = { 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f };
+	}
+	else {
+		recombination_rates = { 0 };
+	}
+
+	for each(int population_size in population_sizes) {
+		for each(float mutation_probability in mutation_probabilities) {
+			for each(float crossover_probability in crossover_probabilities) {
+				for each(float elitism_rate in elitism_rates) {
+					for each(int tournament_size in tournament_sizes) {
+						for each (float gene_mutation_rate in gene_mutation_rates) {
+							for each(float relative_mutation_size in relative_mutation_sizes) {
+								for each(float crossover_ratio in crossover_ratios) {
+									for each (float recombination_rate in recombination_rates) {
+										GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
+											UniformInitialization,
+											TournamentSelection<float>,
+											IntermediateCrossover,
+											RealValuedMutation,
+											RealValuedRecombination,
+											GriewankFitness);
+
+										ga.target_fitness_ = -0.001f;
+
+										ga.chromosome_length_ = chromosome_length;
+
+										ga.population_size_ = population_size;
+										ga.mutation_probability_ = mutation_probability;
+										ga.crossover_probability_ = crossover_probability;
+										ga.elitism_rate_ = elitism_rate;
+
+										ga.additional_parameters_["range_min"] = -bound;
+										ga.additional_parameters_["range_max"] = bound;
+
+										ga.additional_parameters_["tournament_size"] = tournament_size;
+										ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
+										ga.additional_parameters_["relative_mutation_size"] = relative_mutation_size;
+										ga.additional_parameters_["crossover_ratio"] = crossover_ratio;
+
+										ga.recombination_rate_ = recombination_rate;
+
+										ga.max_fitness_evaluations_ = 100000;
+
+										gas.push_back(ga);
+									}
 								}
 							}
 						}
@@ -377,11 +485,10 @@ void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<
 
 int main(int argc, char **argv)
 {
-	FastRand::Seed(time(nullptr));
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeSphereGas(false);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeSphereGas(true);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeSphereGas(false, 10, 5.12f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeSphereGas(true, 10, 5.12f);
 
 	int base_test_size = 40;
 	float test_size_increase_rate = 2.5f;

@@ -1,6 +1,9 @@
 #pragma once
 #include "stdafx.h"
 #include <vector>
+#include <thread>
+#include <process.h>
+#include <random>
 
 template<typename T>
 struct TestResult {
@@ -29,10 +32,12 @@ public:
 
 		int total_tests = gas.size() * test_size;
 		int executed_tests = 0;
+		std::random_device seed_generator;
 #pragma omp parallel
 		{
 #pragma omp for
 			for (int i = 0; i < gas_size * test_size; i++) {
+				FastRand::Seed(seed_generator());
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
 
@@ -65,11 +70,12 @@ public:
 		std::vector<int> evaluations = std::vector<int>();
 
 		int executed_tests = 0;
-
+		std::random_device seed_generator;
 #pragma omp parallel
 		{
 #pragma omp for
 			for (int i = 1; i <= test_size; i++) {
+				FastRand::Seed(seed_generator());
 				float evaluation = ga.RunAlgorithm();
 #pragma omp critical
 				{

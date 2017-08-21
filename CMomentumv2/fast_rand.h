@@ -8,7 +8,6 @@ public:
 	static float RandomFloat();
 	static float RandomFloat(float max);
 	static float RandomFloat(float min, float max);
-private:
-	//fastrand routine returns one integer, similar output value range as C lib.
-	static inline int Generate();
+	static int PolinomialInt(float probability, int max);
+	static int PolinomialInt(float probability, int min, int max);
 };

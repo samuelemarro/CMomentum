@@ -1,23 +1,25 @@
 #include "stdafx.h"
 #include "fast_rand.h"
 #include <stdlib.h>
+#include <random>
 
-static unsigned int g_seed;
+thread_local std::default_random_engine engine;
+thread_local std::uniform_real_distribution<float> real_distribution = std::uniform_real_distribution<float>(0.0f, 1.0f);
 
 //Used to seed the generator.
 void FastRand::Seed(unsigned int seed)
 {
-	g_seed = seed;
+	engine = std::default_random_engine(seed);
 }
 int FastRand::RandomInt(int max) {
-	return Generate() % max;
+	return std::uniform_int_distribution<int>(0, max - 1)(engine);
 }
 int FastRand::RandomInt(int min, int max) {
-	return min + Generate() % (max - min);
+	return std::uniform_int_distribution<int>(min, max - 1)(engine);
 }
 
 float FastRand::RandomFloat() {
-	return (float)Generate() / RAND_MAX;
+	return real_distribution(engine);
 }
 float FastRand::RandomFloat(float max) {
 	return RandomFloat() * max;
@@ -25,11 +27,9 @@ float FastRand::RandomFloat(float max) {
 float FastRand::RandomFloat(float min, float max) {
 	return min + RandomFloat() * (max - min);
 }
-
-//fastrand routine returns one integer, similar output value range as C lib.
-inline int FastRand::Generate()
-{
-	g_seed = (214013 * g_seed + 2531011);
-
-	return (g_seed >> 16) & 0x7FFF;
+int FastRand::PolinomialInt(float probability, int max) {
+	return std::binomial_distribution<int>(max - 1, probability)(engine);
+}
+int FastRand::PolinomialInt(float probability, int min, int max) {
+	return min + std::binomial_distribution<int>(max - min - 1, probability)(engine);
 }
