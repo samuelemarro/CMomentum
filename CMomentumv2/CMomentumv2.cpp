@@ -62,15 +62,15 @@ void TwoPointCrossover(Chromosome<T>& parent1, Chromosome<T>& parent2, std::map<
 
 void IntermediateCrossover(Chromosome<float>& parent1, Chromosome<float>& parent2, std::map<std::string, float>& additional_parameters) {
 	float ratio = additional_parameters["crossover_ratio"];
-	for (int i = 0; i < parent1.genes_.size(); i++) {
-		float random1 = FastRand::RandomFloat(-ratio, 1 + ratio);
-		float random2 = FastRand::RandomFloat(-ratio, 1 + ratio);
 
+	float random = FastRand::RandomFloat(-ratio, 1 + ratio);
+
+	for (int i = 0; i < parent1.genes_.size(); i++) {
 		float parent1_gene = parent1.genes_[i];
 		float parent2_gene = parent2.genes_[i];
 
-		parent1.genes_[i] = parent1_gene * random1 + parent2_gene * (1 - random1);
- 		parent2.genes_[i] = parent1_gene * random2 + parent2_gene * (1 - random2);
+		parent1.genes_[i] = parent1_gene * random + parent2_gene * (1 - random);
+ 		parent2.genes_[i] = parent2_gene * random + parent1_gene * (1 - random);
 	}
 }
 
@@ -490,9 +490,9 @@ int main(int argc, char **argv)
 	std::vector<GeneticAlgorithm<float>> standard_gas = MakeSphereGas(false, 10, 5.12f);
 	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeSphereGas(true, 10, 5.12f);
 
-	int base_test_size = 40;
-	float test_size_increase_rate = 2.5f;
-	float elimination_rate = 0.9f;
+	int base_test_size = 20;
+	float test_size_increase_rate = 2;
+	float elimination_rate = 0.85f;
 
 	int final_test_size = 100000;
 
