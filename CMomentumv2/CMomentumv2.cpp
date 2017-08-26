@@ -187,7 +187,6 @@ float SphereFitness(Chromosome<float>& chromosome, std::map<std::string, float>&
 	return fitness;
 }
 
-//TODO: Debuggare
 float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
 	float sum = 0;
 	float product = 1;
@@ -200,7 +199,7 @@ float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float
 	return -(sum / 4000 - product + 1);
 }
 
-std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
+std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome_length) {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
@@ -231,7 +230,7 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
 
 									ga.target_fitness_ = 0;
 
-									ga.chromosome_length_ = 128;
+									ga.chromosome_length_ = chromosome_length;
 
 									ga.population_size_ = population_size;
 									ga.mutation_probability_ = mutation_probability;
@@ -257,7 +256,7 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
 									BinaryRecombination,
 									OneMaxFitness);
 
-								ga.chromosome_length_ = 128;
+								ga.chromosome_length_ = chromosome_length;
 
 								ga.target_fitness_ = 0;
 
@@ -285,7 +284,7 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised) {
 	return gas;
 }
 
-std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised, int chromosome_length, float bound) {
+std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chromosome<float>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length, float bound) {
 	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
 
 	std::vector<int> population_sizes = { 100, 200, 300 };
@@ -322,81 +321,7 @@ std::vector<GeneticAlgorithm<float>> MakeSphereGas(bool optimised, int chromosom
 											IntermediateCrossover,
 											RealValuedMutation,
 											RealValuedRecombination,
-											SphereFitness);
-
-										ga.target_fitness_ = -0.001f;
-
-										ga.chromosome_length_ = chromosome_length;
-
-										ga.population_size_ = population_size;
-										ga.mutation_probability_ = mutation_probability;
-										ga.crossover_probability_ = crossover_probability;
-										ga.elitism_rate_ = elitism_rate;
-
-										ga.additional_parameters_["range_min"] = -bound;
-										ga.additional_parameters_["range_max"] = bound;
-
-										ga.additional_parameters_["tournament_size"] = tournament_size;
-										ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
-										ga.additional_parameters_["relative_mutation_size"] = relative_mutation_size;
-										ga.additional_parameters_["crossover_ratio"] = crossover_ratio;
-
-										ga.recombination_rate_ = recombination_rate;
-
-										ga.max_fitness_evaluations_ = 100000;
-
-										gas.push_back(ga);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return gas;
-}
-
-std::vector<GeneticAlgorithm<float>> MakeGriewankGas(bool optimised, int chromosome_length, float bound) {
-	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
-
-	std::vector<int> population_sizes = { 100, 200, 300 };
-	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
-	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
-
-	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
-	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> relative_mutation_sizes = { 0.05f, 0.1f, 0.2f };
-
-	std::vector<float> crossover_ratios = { 0, 0.25f };
-
-	std::vector<float> recombination_rates;
-	if (optimised) {
-		recombination_rates = { 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f };
-	}
-	else {
-		recombination_rates = { 0 };
-	}
-
-	for each(int population_size in population_sizes) {
-		for each(float mutation_probability in mutation_probabilities) {
-			for each(float crossover_probability in crossover_probabilities) {
-				for each(float elitism_rate in elitism_rates) {
-					for each(int tournament_size in tournament_sizes) {
-						for each (float gene_mutation_rate in gene_mutation_rates) {
-							for each(float relative_mutation_size in relative_mutation_sizes) {
-								for each(float crossover_ratio in crossover_ratios) {
-									for each (float recombination_rate in recombination_rates) {
-										GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
-											UniformInitialization,
-											TournamentSelection<float>,
-											IntermediateCrossover,
-											RealValuedMutation,
-											RealValuedRecombination,
-											GriewankFitness);
+											fitness);
 
 										ga.target_fitness_ = -0.001f;
 
@@ -487,8 +412,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeSphereGas(false, 10, 5.12f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeSphereGas(true, 10, 5.12f);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(GriewankFitness, false, 10, 5.12f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(GriewankFitness, true, 10, 5.12f);
 
 	int base_test_size = 20;
 	float test_size_increase_rate = 2;
