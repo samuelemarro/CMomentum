@@ -199,6 +199,23 @@ float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float
 	return -(sum / 4000 - product + 1);
 }
 
+float RastriginFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	float sum = 0;
+	for (int i = 0; i < chromosome.genes_.size(); i++) {
+		sum += chromosome.genes_[i] * chromosome.genes_[i] - 10 * std::cosf(2 * std::_Pi * chromosome.genes_[i]);
+	}
+	return -(10 * chromosome.genes_.size() + sum);
+}
+
+float RosenbrockFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	float sum = 0;
+	for (int i = 0; i < chromosome.genes_.size() - 1; i++) {
+		sum += 100 * (chromosome.genes_[i + 1] - chromosome.genes_[i] * chromosome.genes_[i]) * (chromosome.genes_[i + 1] - chromosome.genes_[i] * chromosome.genes_[i]) +
+			(chromosome.genes_[i] - 1) * (chromosome.genes_[i] - 1);
+	}
+	return -sum;
+}
+
 std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome_length) {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
@@ -412,8 +429,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(GriewankFitness, false, 10, 5.12f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(GriewankFitness, true, 10, 5.12f);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 2, 2.048f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RosenbrockFitness, true, 2, 2.048f);
 
 	int base_test_size = 20;
 	float test_size_increase_rate = 2;
@@ -426,4 +443,3 @@ int main(int argc, char **argv)
 	system("PAUSE");
 	return 0;
 }
-
