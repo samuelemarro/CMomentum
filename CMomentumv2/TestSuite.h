@@ -6,26 +6,26 @@
 #include <random>
 
 template<typename T>
-struct TestResult {
-public:
-	std::vector<int> evaluations_;
-	GeneticAlgorithm<T> ga_;
-	float median_ = INT32_MIN;
-
-	TestResult(GeneticAlgorithm<T> ga, int evaluations_size) : ga_(ga) {
-		evaluations_.reserve(evaluations_size);
-	}
-};
-
-template<typename T>
 class TestSuite {
-public:
-	static std::vector<TestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
-		std::vector<TestResult<T>> results = std::vector<TestResult<T>>();
+	template<typename T>
+	class PartialTestResult {
+		friend class TestSuite<T>;
+		std::vector<int> evaluations_;
+		GeneticAlgorithm<T> ga_;
+		float median_ = INT32_MIN;
+
+		TestSuite::PartialTestResult<T>(GeneticAlgorithm<T> ga, int evaluations_size) : ga_(ga) {
+			evaluations_.reserve(evaluations_size);
+		}
+	};
+public:
+	static std::vector<TestSuite::PartialTestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
+
+		std::vector<TestSuite::PartialTestResult<T>> results = std::vector<TestSuite::PartialTestResult<T>>();
 
 		for (int i = 0; i < gas.size(); i++) {
-			results.push_back(TestResult<T>(gas[i], test_size));
+			results.push_back(PartialTestResult<T>(gas[i], test_size));
 		}
 
 		int gas_size = gas.size();
@@ -94,15 +94,15 @@ public:
 
 		return Median(evaluations);
 	}
-	static TestResult<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
+	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
-		std::vector<TestResult<T>> tournament = std::vector<TestResult<T>>();
+		std::vector<TestSuite::PartialTestResult<T>> tournament = std::vector<TestSuite::PartialTestResult<T>>();
 		int tournament_size = gas.size();
 		int test_size = base_test_size;
 		int tournament_number = 1;
 
 		//tournament.resize requires an object to use in case the vector's size is increased (which is not going to happen)
-		TestResult<T> empty_test = TestResult<T>(TestResult<T>(gas[0], 0));
+		TestSuite::PartialTestResult<T> empty_test = PartialTestResult<T>(PartialTestResult<T>(gas[0], 0));
 
 		while (tournament_size > 1) {
 			std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
@@ -130,7 +130,7 @@ public:
 
 			tournament_number++;
 		}
-		return tournament[0];
+		return tournament[0].ga_;
 	}
 private:
 	static float Median(std::vector<int> vector) {

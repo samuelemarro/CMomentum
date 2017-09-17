@@ -70,7 +70,7 @@ void IntermediateCrossover(Chromosome<float>& parent1, Chromosome<float>& parent
 		float parent2_gene = parent2.genes_[i];
 
 		parent1.genes_[i] = parent1_gene * random + parent2_gene * (1 - random);
- 		parent2.genes_[i] = parent2_gene * random + parent1_gene * (1 - random);
+		parent2.genes_[i] = parent2_gene * random + parent1_gene * (1 - random);
 	}
 }
 
@@ -216,7 +216,36 @@ float RosenbrockFitness(Chromosome<float>& chromosome, std::map<std::string, flo
 	return -sum;
 }
 
-std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome_length) {
+const int knapsack_volumes[5] = {1, 2, 3, 4, 5};
+const int knapsack_values[5] = {1, 2, 3, 4, 5};
+const int max_volume = 10;
+const int best_value = 10;
+
+float KnapsackFitness(Chromosome<bool>& chromosome, std::map<std::string, float>& additional_parameters) {
+
+	int volume = 0;
+	int value = 0;
+	do
+	{
+		for (int i = 0; i < chromosome.genes_.size(); i++) {
+			if (chromosome.genes_[i]) {
+				volume += knapsack_volumes[i];
+				value += knapsack_values[i];
+			}
+		}
+
+		if (volume > max_volume) {
+			int random_index = FastRand::RandomInt(chromosome.genes_.size());
+			if (chromosome.genes_[random_index]) {
+				chromosome.genes_[random_index] = false;
+			}
+		}
+	} while (volume > max_volume);
+
+	return value - best_value;
+}
+
+std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome<bool>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length) {
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
@@ -227,6 +256,13 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome
 
 	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
 	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
+	std::vector<float> recombination_rates;
+	if (optimised) {
+		recombination_rates = { 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f };
+	}
+	else {
+		recombination_rates = { 0 };
+	}
 
 	for each(int population_size in population_sizes) {
 		for each(float mutation_probability in mutation_probabilities) {
@@ -235,47 +271,18 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome
 					for each(int tournament_size in tournament_sizes) {
 						for each (float gene_mutation_rate in gene_mutation_rates) {
 
-							if (optimised) {
-								for (float recombination_rate = 0.1f; recombination_rate < 1; recombination_rate += 0.1f) {
-									GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
-										BinaryInitialization,
-										TournamentSelection<bool>,
-										TwoPointCrossover<bool>,
-										BitFlipMutation,
-										BinaryRecombination,
-										OneMaxFitness);
-
-									ga.target_fitness_ = 0;
-
-									ga.chromosome_length_ = chromosome_length;
-
-									ga.population_size_ = population_size;
-									ga.mutation_probability_ = mutation_probability;
-									ga.crossover_probability_ = crossover_probability;
-									ga.elitism_rate_ = elitism_rate;
-
-									ga.additional_parameters_["tournament_size"] = tournament_size;
-									ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
-
-									ga.recombination_rate_ = recombination_rate;
-
-									ga.max_fitness_evaluations_ = 100000;
-
-									gas.push_back(ga);
-								}
-							}
-							else {
+							for each (float recombination_rate in recombination_rates){
 								GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
 									BinaryInitialization,
 									TournamentSelection<bool>,
 									TwoPointCrossover<bool>,
 									BitFlipMutation,
 									BinaryRecombination,
-									OneMaxFitness);
-
-								ga.chromosome_length_ = chromosome_length;
+									fitness);
 
 								ga.target_fitness_ = 0;
+
+								ga.chromosome_length_ = chromosome_length;
 
 								ga.population_size_ = population_size;
 								ga.mutation_probability_ = mutation_probability;
@@ -285,12 +292,13 @@ std::vector<GeneticAlgorithm<bool>> MakeOneMaxGas(bool optimised, int chromosome
 								ga.additional_parameters_["tournament_size"] = tournament_size;
 								ga.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
 
-								ga.recombination_rate_ = 0;
+								ga.recombination_rate_ = recombination_rate;
 
 								ga.max_fitness_evaluations_ = 100000;
 
 								gas.push_back(ga);
 							}
+
 						}
 					}
 				}
@@ -387,24 +395,24 @@ std::string FormatTime(std::time_t time_to_format, char* format) {
 template<typename T>
 void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<GeneticAlgorithm<T>> optimised_gas, int base_test_size, float test_size_increase_rate, float elimination_rate, int final_test_size, std::string directory) {
 	std::cout << "Running Standard Exploration Test..." << std::endl;
-	TestResult<T> best_standard = TestSuite<T>::SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate);
+	GeneticAlgorithm<T> best_standard = TestSuite<T>::SelectBestConfiguration(standard_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Standard Exploration Test completed! Winner: " << std::endl;
-	std::cout << best_standard.ga_.DumpParameters() << std::endl;
+	std::cout << best_standard.DumpParameters() << std::endl;
 	std::cout << "Running Standard Main Test..." << std::endl;
 
-	float best_standard_evaluations = TestSuite<T>::RunTest(best_standard.ga_, final_test_size);
+	float best_standard_evaluations = TestSuite<T>::RunTest(best_standard, final_test_size);
 
 	std::cout << "Standard Main Test finished! Evaluations: " << std::to_string(best_standard_evaluations) << std::endl;
 
 	std::cout << "Running Optimised Exploration Test..." << std::endl;
-	TestResult<T> best_optimised = TestSuite<T>::SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
+	GeneticAlgorithm<T> best_optimised = TestSuite<T>::SelectBestConfiguration(optimised_gas, base_test_size, test_size_increase_rate, elimination_rate);
 
 	std::cout << "Optimised Exploration Test completed! Winner: " << std::endl;
-	std::cout << best_optimised.ga_.DumpParameters() << std::endl;
+	std::cout << best_optimised.DumpParameters() << std::endl;
 	std::cout << "Running Optimised Main Test..." << std::endl;
 
-	float best_optimised_evaluations = TestSuite<T>::RunTest(best_optimised.ga_, final_test_size);
+	float best_optimised_evaluations = TestSuite<T>::RunTest(best_optimised, final_test_size);
 
 	std::cout << "Optimised Main Test finished! Evaluations: " << std::to_string(best_optimised_evaluations) << std::endl;
 
@@ -415,9 +423,9 @@ void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<
 	std::ofstream result_file(file_path);
 
 	result_file << "BEST STANDARD (" << best_standard_evaluations << "):\n";
-	result_file << best_standard.ga_.DumpParameters() << "\n";
+	result_file << best_standard.DumpParameters() << "\n";
 	result_file << "BEST OPTIMISED(" << best_optimised_evaluations << "):\n";
-	result_file << best_optimised.ga_.DumpParameters() << "\n";
+	result_file << best_optimised.DumpParameters() << "\n";
 
 	result_file.flush();
 	result_file.close();
@@ -429,8 +437,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 2, 2.048f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RosenbrockFitness, true, 2, 2.048f);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 5, 2.048f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RosenbrockFitness, true, 5, 2.048f);
 
 	int base_test_size = 20;
 	float test_size_increase_rate = 2;
