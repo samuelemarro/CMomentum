@@ -447,7 +447,7 @@ int main(int argc, char **argv)
 	int final_test_size = 100000;
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	TestSuite<float>::RunDetailedTest(standard_gas[0], 10);
+	TestSuite<float>::RunDetailedTest(standard_gas[0], 10, 1000);
 	system("PAUSE");
 	return 0;
 }

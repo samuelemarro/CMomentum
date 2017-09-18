@@ -7,6 +7,47 @@
 #include <stdlib.h>
 #include <math.h>
 #include <numeric>
+#include <type_traits>
+
+static class MathUtility {
+	template<typename T>
+	friend class TestSuite;
+private:
+	template<typename T,
+		typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+		static float Median(std::vector<T> vector) {
+		return Median(vector, false);
+	}
+	template<typename T,
+		typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+	static float Median(std::vector<T> vector, bool is_sorted) {
+		
+		float median = 0;
+
+		if (!is_sorted) {
+			std::sort(vector.begin(), vector.end());
+		}
+
+		if (vector.size() % 2 == 0) {
+			median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
+		}
+		else {
+			median = vector[(vector.size() - 1) / 2];
+		}
+
+		return median;
+	}
+	static float StandardDeviation(std::vector<float> data) {
+		return StandardDeviation(data, std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size()));
+	}
+	static float StandardDeviation(std::vector<float> data, float average) {
+		float sum = 0;
+		for (float value : data) {
+			sum += (value - average) * (value - average);
+		}
+		return std::sqrt(sum / data.size());
+	}
+};
 
 template<typename T>
 class TestSuite {
@@ -34,12 +75,22 @@ class TestSuite {
 		DataPoint() {
 
 		}
-		DataPoint(std::vector<float> data) {
+		DataPoint(std::vector<float> data) : DataPoint(data, false) {
+			
+		}
+		DataPoint(std::vector<float> data, bool is_sorted) {
 			min = *std::min_element(data.begin(), data.end());
 			max = *std::max_element(data.begin(), data.end());
+			if (!is_sorted) {
+				std::sort(data.begin(), data.end());
+			}
 			average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
-			//TODO: Completare
-			
+			standard_deviation = MathUtility::StandardDeviation(data, average);
+			median = MathUtility::Median(data, true);
+			int half_size = data.size() / 2;
+			q1 = MathUtility::Median(std::vector<float>(data.begin(), data.begin() + half_size), true);
+			q3 = MathUtility::Median(std::vector<float>(data.begin() + half_size, data.end()), true);
+			//TODO: E se data ha dimensione dispari?
 		}
 	};
 
@@ -118,10 +169,17 @@ public:
 
 		std::cout << "\n";
 
-		return Median(evaluations);
+		return MathUtility::Median(evaluations);
 	}
 
-	static std::pair<DataPoint, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size) {
+	static std::pair<DataPoint, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
+		
+		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_fitness_evaluations_ != -1) {
+			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain generation." << std::endl;
+			std::cout << "Using other types of termination might lead to unexpected results, for example the best fitness worsening after reaching the termination." << std::endl;
+			std::cout << "This is caused by the fact that GAs that have reached the termination stop outputting further results." << std::endl;
+		}
+		
 		std::vector<float> evaluations = std::vector<float>();
 		//Each inner vector corresponds to a generation
 		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
@@ -134,7 +192,7 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				float evaluation = ga.RunAlgorithm(true);
+				float evaluation = ga.RunAlgorithm(true, snapshot_period);
 				
 #pragma omp critical
 				{
@@ -151,6 +209,7 @@ public:
 				}
 
 				executed_tests++;
+				//TODO: La copia serve effettivamente?
 				int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
 				if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
 					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
@@ -159,11 +218,11 @@ public:
 		}
 
 		std::vector<DataPoint> datapoints = std::vector<DataPoint>();
-		for (std::vector<float> generation : final_fitness_values) {
-			datapoints.push_back(MakeDataPoint(generation));
+		for (std::vector<float> cluster : final_fitness_values) {
+			datapoints.push_back(DataPoint(cluster));
 		}
 
-		return std::make_pair(MakeDataPoint(evaluations), datapoints);
+		return std::make_pair(DataPoint(evaluations), datapoints);
 	}
 	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
@@ -203,28 +262,6 @@ public:
 		}
 		return tournament[0].ga_;
 	}
-
-	static float Median(std::vector<int> vector) {
-		return Median(vector, false);
-	}
-
-	static float Median(std::vector<int> vector, bool is_sorted) {
-		float median = 0;
-
-		if (!is_sorted) {
-			std::sort(vector.begin(), vector.end());
-		}
-
-		if (vector.size() % 2 == 0) {
-			median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
-		}
-		else {
-			median = vector[(vector.size() - 1) / 2];
-		}
-
-		return median;
-	}
-	private:
 	static void EraseWriteLine(std::string text) {
 		std::cout << text;
 		std::cout << std::string(text.length(), '\b');

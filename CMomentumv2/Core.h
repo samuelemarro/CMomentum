@@ -83,16 +83,24 @@ public:
 		CheckFunctions();
 	}
 
-	int RunAlgorithm(bool track_fitness) {
+	int RunAlgoritm() {
+		return RunAlgorithm(false, 0);
+	}
+
+	int RunAlgorithm(bool track_fitness, int snapshot_period) {
 		CheckFunctions();
 		CheckParameters();
+
+		if (track_fitness && snapshot_period < population_size_) {
+			throw std::invalid_argument("The parameter \"snapshot_period\" must be bigger than or equal to \"population_size\"");
+		}
+
 		int generation = 1;
 		int fitness_evaluations = 0;
 		float best_fitness = INT32_MIN;
 
-		if (track_fitness) {
-			tracked_fitness_values = std::vector<std::vector<float>> ();
-		}
+		std::vector<float> current_cluster = std::vector<float>();
+		tracked_fitness_values = std::vector<std::vector<float>>();
 
 		//Create the initial population
 		std::vector<std::unique_ptr<Chromosome<T>>> population = std::vector<std::unique_ptr<Chromosome<T>>>();
@@ -104,6 +112,8 @@ public:
 			chromosome->fitness_is_valid_ = true;
 			population.push_back(std::unique_ptr<Chromosome<T>>(chromosome));
 		}
+
+		fitness_evaluations += population_size_;
 
 		//Sort the population by fitness in descending order
 		sort(population.begin(), population.end(),
@@ -155,6 +165,8 @@ public:
 				offspring.push_back(std::unique_ptr<Chromosome<T>>(child2));
 			}
 
+			bool take_snapshot = false;
+
 			for (auto& chromosome : offspring)
 			{
 				if (FastRand::RandomFloat() < mutation_probability_) {
@@ -167,6 +179,10 @@ public:
 					chromosome->fitness_is_valid_ = true;
 
 					fitness_evaluations++;
+
+					if (fitness_evaluations % snapshot_period == 0) {
+						take_snapshot = true;
+					}
 
 					if (chromosome->has_parents_) {
 						//If both parents are eligible, pick one randomly
@@ -190,20 +206,21 @@ public:
 			}
 			population = std::move(offspring);
 
-			//Sort the population by fitness in descending order
-			std::sort(population.begin(), population.end(),
-				[](const auto& lhs, const auto& rhs) {
-				return lhs->fitness_ > rhs->fitness_;
-			});
-
-			//Store the fitness values of the current generation
-			if (track_fitness) {
+			//TODO: Debuggare
+			//Store the fitness values of the snapshot
+			if (track_fitness && take_snapshot) {
 				std::vector<float> fitness_values = std::vector<float>();
 				for (auto& chromosome : population) {
 					fitness_values.push_back(chromosome->fitness_);
 				}
 				tracked_fitness_values.push_back(fitness_values);
 			}
+
+			//Sort the population by fitness in descending order
+			std::sort(population.begin(), population.end(),
+				[](const auto& lhs, const auto& rhs) {
+				return lhs->fitness_ > rhs->fitness_;
+			});
 
 			best_fitness = population[0]->fitness_;
 
