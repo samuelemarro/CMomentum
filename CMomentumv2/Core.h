@@ -64,6 +64,8 @@ public:
 	int max_generation_ = -1;
 	float target_fitness_ = FLT_MAX;
 
+	std::vector<std::vector<float>> tracked_fitness_values;
+
 	GeneticAlgorithm(
 		std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization,
 		std::function<std::pair<Chromosome<T>*, Chromosome<T>*>(std::vector<std::unique_ptr<Chromosome<T>>>&, std::map<std::string, float>&)> selection,
@@ -81,12 +83,16 @@ public:
 		CheckFunctions();
 	}
 
-	int RunAlgorithm() {
+	int RunAlgorithm(bool track_fitness) {
 		CheckFunctions();
 		CheckParameters();
 		int generation = 1;
 		int fitness_evaluations = 0;
 		float best_fitness = INT32_MIN;
+
+		if (track_fitness) {
+			tracked_fitness_values = std::vector<std::vector<float>> ();
+		}
 
 		//Create the initial population
 		std::vector<std::unique_ptr<Chromosome<T>>> population = std::vector<std::unique_ptr<Chromosome<T>>>();
@@ -189,6 +195,15 @@ public:
 				[](const auto& lhs, const auto& rhs) {
 				return lhs->fitness_ > rhs->fitness_;
 			});
+
+			//Store the fitness values of the current generation
+			if (track_fitness) {
+				std::vector<float> fitness_values = std::vector<float>();
+				for (auto& chromosome : population) {
+					fitness_values.push_back(chromosome->fitness_);
+				}
+				tracked_fitness_values.push_back(fitness_values);
+			}
 
 			best_fitness = population[0]->fitness_;
 

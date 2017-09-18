@@ -401,7 +401,7 @@ void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<
 	std::cout << best_standard.DumpParameters() << std::endl;
 	std::cout << "Running Standard Main Test..." << std::endl;
 
-	float best_standard_evaluations = TestSuite<T>::RunTest(best_standard, final_test_size);
+	float best_standard_evaluations = TestSuite<T>::RunBaseTest(best_standard, final_test_size);
 
 	std::cout << "Standard Main Test finished! Evaluations: " << std::to_string(best_standard_evaluations) << std::endl;
 
@@ -412,7 +412,7 @@ void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<
 	std::cout << best_optimised.DumpParameters() << std::endl;
 	std::cout << "Running Optimised Main Test..." << std::endl;
 
-	float best_optimised_evaluations = TestSuite<T>::RunTest(best_optimised, final_test_size);
+	float best_optimised_evaluations = TestSuite<T>::RunBaseTest(best_optimised, final_test_size);
 
 	std::cout << "Optimised Main Test finished! Evaluations: " << std::to_string(best_optimised_evaluations) << std::endl;
 
@@ -446,8 +446,8 @@ int main(int argc, char **argv)
 
 	int final_test_size = 100000;
 
-	RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-
+	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
+	TestSuite<float>::RunDetailedTest(standard_gas[0], 10);
 	system("PAUSE");
 	return 0;
 }

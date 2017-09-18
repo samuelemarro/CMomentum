@@ -4,12 +4,14 @@
 #include <thread>
 #include <process.h>
 #include <random>
+#include <stdlib.h>
+#include <math.h>
+#include <numeric>
 
 template<typename T>
 class TestSuite {
-
 	template<typename T>
-	class PartialTestResult {
+	struct PartialTestResult {
 		friend class TestSuite<T>;
 		std::vector<int> evaluations_;
 		GeneticAlgorithm<T> ga_;
@@ -19,7 +21,30 @@ class TestSuite {
 			evaluations_.reserve(evaluations_size);
 		}
 	};
+	struct DataPoint {
+	public:
+		float min;
+		float max;
+		float average;
+		float standard_deviation;
+		float median;
+		float q1;
+		float q3;
+
+		DataPoint() {
+
+		}
+		DataPoint(std::vector<float> data) {
+			min = *std::min_element(data.begin(), data.end());
+			max = *std::max_element(data.begin(), data.end());
+			average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
+			//TODO: Completare
+			
+		}
+	};
+
 public:
+
 	static std::vector<TestSuite::PartialTestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
 		std::vector<TestSuite::PartialTestResult<T>> results = std::vector<TestSuite::PartialTestResult<T>>();
@@ -41,7 +66,7 @@ public:
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
 
-				float evaluation = ga.RunAlgorithm();
+				float evaluation = ga.RunAlgorithm(false);
 
 #pragma omp critical
 				{
@@ -65,7 +90,7 @@ public:
 
 		return results;
 	}
-	static float RunTest(GeneticAlgorithm<T> ga, int test_size) {
+	static float RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
 
 		std::vector<int> evaluations = std::vector<int>();
 
@@ -76,7 +101,8 @@ public:
 #pragma omp for
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
-				float evaluation = ga.RunAlgorithm();
+				GeneticAlgorithm<T> ga = base_ga;
+				float evaluation = ga.RunAlgorithm(false);
 #pragma omp critical
 				{
 					evaluations.push_back(evaluation);
@@ -93,6 +119,51 @@ public:
 		std::cout << "\n";
 
 		return Median(evaluations);
+	}
+
+	static std::pair<DataPoint, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size) {
+		std::vector<float> evaluations = std::vector<float>();
+		//Each inner vector corresponds to a generation
+		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
+
+		int executed_tests = 0;
+		std::random_device seed_generator;
+#pragma omp parallel
+		{
+#pragma omp for
+			for (int i = 1; i <= test_size; i++) {
+				FastRand::Seed(seed_generator());
+				GeneticAlgorithm<T> ga = base_ga;
+				float evaluation = ga.RunAlgorithm(true);
+				
+#pragma omp critical
+				{
+					//If final_fitness_values has 500 generations and tracked_fitness_values has 1000, make room for more
+					for (int i = final_fitness_values.size(); i < ga.tracked_fitness_values.size(); i++) {
+						final_fitness_values.push_back(std::vector<float>());
+					}
+
+					//Add the fitness values of each generation to its corresponding slot
+					for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
+						final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
+					}
+					evaluations.push_back(evaluation);
+				}
+
+				executed_tests++;
+				int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
+				if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
+					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
+				}
+			}
+		}
+
+		std::vector<DataPoint> datapoints = std::vector<DataPoint>();
+		for (std::vector<float> generation : final_fitness_values) {
+			datapoints.push_back(MakeDataPoint(generation));
+		}
+
+		return std::make_pair(MakeDataPoint(evaluations), datapoints);
 	}
 	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
@@ -132,11 +203,17 @@ public:
 		}
 		return tournament[0].ga_;
 	}
-private:
+
 	static float Median(std::vector<int> vector) {
+		return Median(vector, false);
+	}
+
+	static float Median(std::vector<int> vector, bool is_sorted) {
 		float median = 0;
 
-		std::sort(vector.begin(), vector.end());
+		if (!is_sorted) {
+			std::sort(vector.begin(), vector.end());
+		}
 
 		if (vector.size() % 2 == 0) {
 			median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
@@ -147,6 +224,7 @@ private:
 
 		return median;
 	}
+	private:
 	static void EraseWriteLine(std::string text) {
 		std::cout << text;
 		std::cout << std::string(text.length(), '\b');
