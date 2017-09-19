@@ -115,6 +115,15 @@ public:
 
 		fitness_evaluations += population_size_;
 
+		//If necessary, take a snapshot of the initial population (only happens when snapshot_period = population_size_)
+		if (track_fitness && fitness_evaluations % snapshot_period == 0) {
+			std::vector<float> fitness_values = std::vector<float>();
+			for (auto& chromosome : population) {
+				fitness_values.push_back(chromosome->fitness_);
+			}
+			tracked_fitness_values.push_back(fitness_values);
+		}
+
 		//Sort the population by fitness in descending order
 		sort(population.begin(), population.end(),
 			[](const auto& lhs, const auto& rhs) {
@@ -180,7 +189,10 @@ public:
 
 					fitness_evaluations++;
 
-					if (fitness_evaluations % snapshot_period == 0) {
+					//If the evaluation count reaches the one required for a snapshot, mark it
+					//so that it will take a snapshot once the fitness values have been updated.
+					//The second condition is used to prevent taking snapshots after fitness_evaluations has reached the maximum.
+					if (track_fitness && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
 						take_snapshot = true;
 					}
 
@@ -206,7 +218,6 @@ public:
 			}
 			population = std::move(offspring);
 
-			//TODO: Debuggare
 			//Store the fitness values of the snapshot
 			if (track_fitness && take_snapshot) {
 				std::vector<float> fitness_values = std::vector<float>();

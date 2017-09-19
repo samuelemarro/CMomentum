@@ -87,10 +87,16 @@ class TestSuite {
 			average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
 			standard_deviation = MathUtility::StandardDeviation(data, average);
 			median = MathUtility::Median(data, true);
+			
+			//Remove the middle element to split correctly data in two parts
+			if (data.size() % 2 != 0) {
+				int middle_position = (data.size() + 1) / 2;
+				data.erase(data.begin() + middle_position);
+			}
 			int half_size = data.size() / 2;
+
 			q1 = MathUtility::Median(std::vector<float>(data.begin(), data.begin() + half_size), true);
 			q3 = MathUtility::Median(std::vector<float>(data.begin() + half_size, data.end()), true);
-			//TODO: E se data ha dimensione dispari?
 		}
 	};
 
@@ -125,9 +131,8 @@ public:
 				}
 
 				executed_tests++;
-				int executed_tests_copy = executed_tests; //Local variable used to prevent race conditions
-				if (executed_tests_copy % std::max(1, total_tests / 100) == 0) {
-					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / total_tests) + "%");
+				if (executed_tests % std::max(1, total_tests / 100) == 0) {
+					EraseWriteLine("Progress: " + std::to_string(executed_tests * 100 / total_tests) + "%");
 				}
 			}
 		}
@@ -160,9 +165,8 @@ public:
 				}
 
 				executed_tests++;
-				int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
-				if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
-					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
+				if (executed_tests % std::max(1, test_size / 100) == 0) {
+					EraseWriteLine("Progress: " + std::to_string(executed_tests * 100 / test_size) + "%");
 				}
 			}
 		}
@@ -209,10 +213,8 @@ public:
 				}
 
 				executed_tests++;
-				//TODO: La copia serve effettivamente?
-				int executed_tests_copy = executed_tests;//Local variable used to prevent race conditions
-				if (executed_tests_copy % std::max(1, test_size / 100) == 0) {
-					EraseWriteLine("Progress: " + std::to_string(executed_tests_copy * 100 / test_size) + "%");
+				if (executed_tests % std::max(1, test_size / 100) == 0) {
+					EraseWriteLine("Progress: " + std::to_string(executed_tests * 100 / test_size) + "%");
 				}
 			}
 		}
