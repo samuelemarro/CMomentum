@@ -115,6 +115,15 @@ public:
 
 		fitness_evaluations += population_size_;
 
+		//Store the initial population
+		if (track_fitness) {
+			std::vector<float> fitness_values = std::vector<float>();
+			for (auto& chromosome : population) {
+				fitness_values.push_back(chromosome->fitness_);
+			}
+			tracked_fitness_values.push_back(fitness_values);
+		}
+
 		//If necessary, take a snapshot of the initial population (only happens when snapshot_period = population_size_)
 		if (track_fitness && fitness_evaluations % snapshot_period == 0) {
 			std::vector<float> fitness_values = std::vector<float>();

@@ -12,6 +12,7 @@
 static class MathUtility {
 	template<typename T>
 	friend class TestSuite;
+	friend class DataPoint;
 private:
 	template<typename T,
 		typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
@@ -49,6 +50,44 @@ private:
 	}
 };
 
+struct DataPoint {
+public:
+	float min;
+	float max;
+	float average;
+	float standard_deviation;
+	float median;
+	float q1;
+	float q3;
+
+	DataPoint() {
+
+	}
+	DataPoint(std::vector<float> data) : DataPoint(data, false) {
+
+	}
+	DataPoint(std::vector<float> data, bool is_sorted) {
+		min = *std::min_element(data.begin(), data.end());
+		max = *std::max_element(data.begin(), data.end());
+		if (!is_sorted) {
+			std::sort(data.begin(), data.end());
+		}
+		average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
+		standard_deviation = MathUtility::StandardDeviation(data, average);
+		median = MathUtility::Median(data, true);
+
+		//Remove the middle element to split correctly data in two parts
+		if (data.size() % 2 != 0) {
+			int middle_position = (data.size() + 1) / 2;
+			data.erase(data.begin() + middle_position);
+		}
+		int half_size = data.size() / 2;
+
+		q1 = MathUtility::Median(std::vector<float>(data.begin(), data.begin() + half_size), true);
+		q3 = MathUtility::Median(std::vector<float>(data.begin() + half_size, data.end()), true);
+	}
+};
+
 template<typename T>
 class TestSuite {
 	template<typename T>
@@ -62,46 +101,7 @@ class TestSuite {
 			evaluations_.reserve(evaluations_size);
 		}
 	};
-	struct DataPoint {
-	public:
-		float min;
-		float max;
-		float average;
-		float standard_deviation;
-		float median;
-		float q1;
-		float q3;
-
-		DataPoint() {
-
-		}
-		DataPoint(std::vector<float> data) : DataPoint(data, false) {
-			
-		}
-		DataPoint(std::vector<float> data, bool is_sorted) {
-			min = *std::min_element(data.begin(), data.end());
-			max = *std::max_element(data.begin(), data.end());
-			if (!is_sorted) {
-				std::sort(data.begin(), data.end());
-			}
-			average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
-			standard_deviation = MathUtility::StandardDeviation(data, average);
-			median = MathUtility::Median(data, true);
-			
-			//Remove the middle element to split correctly data in two parts
-			if (data.size() % 2 != 0) {
-				int middle_position = (data.size() + 1) / 2;
-				data.erase(data.begin() + middle_position);
-			}
-			int half_size = data.size() / 2;
-
-			q1 = MathUtility::Median(std::vector<float>(data.begin(), data.begin() + half_size), true);
-			q3 = MathUtility::Median(std::vector<float>(data.begin() + half_size, data.end()), true);
-		}
-	};
-
 public:
-
 	static std::vector<TestSuite::PartialTestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
 		std::vector<TestSuite::PartialTestResult<T>> results = std::vector<TestSuite::PartialTestResult<T>>();

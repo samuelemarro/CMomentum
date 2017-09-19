@@ -433,6 +433,41 @@ void RunCompleteTest(std::vector<GeneticAlgorithm<T>> standard_gas, std::vector<
 	system(("notepad.exe " + file_path).c_str());
 }
 
+std::string DataPointToCSVLine(DataPoint datapoint, std::string separator) {
+	return std::to_string(datapoint.average) + separator + std::to_string(datapoint.standard_deviation) + separator +
+		std::to_string(datapoint.min) + separator +
+		std::to_string(datapoint.q1) + separator +
+		std::to_string(datapoint.median) + separator +
+		std::to_string(datapoint.q3) + separator +
+		std::to_string(datapoint.max);
+}
+
+void SaveDetailedTest(std::pair<DataPoint, std::vector<DataPoint>> result, int snapshot_period, std::string extra_info, std::string directory) {
+	directory.erase(directory.find_last_of('\\') + 1);
+	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
+	std::string file_path = directory + "GA Detailed Results " + finish_time + ".txt";
+
+	std::ofstream result_file(file_path);
+
+	result_file << extra_info << "\n\n";
+	result_file << "EVALUATION STATS:\n";
+	result_file << "Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
+	result_file << DataPointToCSVLine(result.first, ";") << "\n\n";
+	result_file << "FITNESS STATS:\n";
+	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
+	
+	int snapshot_evaluations = 0;
+	for (DataPoint datapoint : result.second) {
+		result_file << snapshot_evaluations << ";" << DataPointToCSVLine(datapoint, "; ") << "\n";
+		snapshot_evaluations += snapshot_period;
+	}
+
+	result_file.flush();
+	result_file.close();
+
+	system(("notepad.exe " + file_path).c_str());
+}
+
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
@@ -447,7 +482,8 @@ int main(int argc, char **argv)
 	int final_test_size = 100000;
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	TestSuite<float>::RunDetailedTest(standard_gas[0], 10, 1000);
+	auto result = TestSuite<float>::RunDetailedTest(standard_gas[0], 10, 1000);
+	SaveDetailedTest(result, 1000, standard_gas[0].DumpParameters(), directory);
 	system("PAUSE");
 	return 0;
 }
