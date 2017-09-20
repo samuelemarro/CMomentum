@@ -1,0 +1,22 @@
+BEST STANDARD (10084):
+Chromosome Length: 128
+Population Size: 300
+Mutation Probability: 0.150000
+Crossover Probability: 0.700000
+Elitism Rate: 0.150000
+Recombination Rate: 0.000000
+Additional Parameters:
+-gene_mutation_rate: 0.050000
+-tournament_size: 2.000000
+
+BEST OPTIMISED(1754):
+Chromosome Length: 64
+Population Size: 100
+Mutation Probability: 0.150000
+Crossover Probability: 0.750000
+Elitism Rate: 0.150000
+Recombination Rate: 0.700000
+Additional Parameters:
+-gene_mutation_rate: 0.050000
+-tournament_size: 2.000000
+

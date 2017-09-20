@@ -216,8 +216,8 @@ float RosenbrockFitness(Chromosome<float>& chromosome, std::map<std::string, flo
 	return -sum;
 }
 
-const int knapsack_volumes[5] = {1, 2, 3, 4, 5};
-const int knapsack_values[5] = {1, 2, 3, 4, 5};
+const int knapsack_volumes[5] = { 1, 2, 3, 4, 5 };
+const int knapsack_values[5] = { 1, 2, 3, 4, 5 };
 const int max_volume = 10;
 const int best_value = 10;
 
@@ -271,7 +271,7 @@ std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome
 					for each(int tournament_size in tournament_sizes) {
 						for each (float gene_mutation_rate in gene_mutation_rates) {
 
-							for each (float recombination_rate in recombination_rates){
+							for each (float recombination_rate in recombination_rates) {
 								GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
 									BinaryInitialization,
 									TournamentSelection<bool>,
@@ -442,7 +442,7 @@ std::string DataPointToCSVLine(DataPoint datapoint, std::string separator) {
 		std::to_string(datapoint.max);
 }
 
-void SaveDetailedTest(std::pair<DataPoint, std::vector<DataPoint>> result, int snapshot_period, std::string extra_info, std::string directory) {
+void SaveDetailedTest(std::vector<DataPoint> result, int snapshot_period, std::string extra_info, std::string directory) {
 	directory.erase(directory.find_last_of('\\') + 1);
 	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 	std::string file_path = directory + "GA Detailed Results " + finish_time + ".txt";
@@ -450,14 +450,11 @@ void SaveDetailedTest(std::pair<DataPoint, std::vector<DataPoint>> result, int s
 	std::ofstream result_file(file_path);
 
 	result_file << extra_info << "\n\n";
-	result_file << "EVALUATION STATS:\n";
-	result_file << "Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
-	result_file << DataPointToCSVLine(result.first, ";") << "\n\n";
 	result_file << "FITNESS STATS:\n";
 	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
-	
+
 	int snapshot_evaluations = 0;
-	for (DataPoint datapoint : result.second) {
+	for (DataPoint datapoint : result) {
 		result_file << snapshot_evaluations << ";" << DataPointToCSVLine(datapoint, "; ") << "\n";
 		snapshot_evaluations += snapshot_period;
 	}
@@ -468,22 +465,44 @@ void SaveDetailedTest(std::pair<DataPoint, std::vector<DataPoint>> result, int s
 	system(("notepad.exe " + file_path).c_str());
 }
 
+template<typename T>
+void RunCompleteDetailedTest(GeneticAlgorithm<T> ga, int test_size, int snapshot_period, std::string directory) {
+	auto result = TestSuite<T>::RunDetailedTest(ga, test_size, snapshot_period);
+	SaveDetailedTest(result, snapshot_period,
+		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSnapshot Period: " + std::to_string(snapshot_period) + "\nEvaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\n",
+		directory);
+}
+
+GeneticAlgorithm<bool> MakeOneMax(int max_evaluations, bool optimised) {
+	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(BinaryInitialization, TournamentSelection<bool>, TwoPointCrossover<bool>, BitFlipMutation, BinaryRecombination, OneMaxFitness);
+	ga.max_fitness_evaluations_ = max_evaluations;
+	ga.chromosome_length_ = 80;
+	ga.population_size_ = optimised ? 100 : 200;
+	ga.mutation_probability_ = 0.15f;
+	ga.crossover_probability_ = 0.8f;
+	ga.elitism_rate_ = 0.15f;
+	ga.recombination_rate_ = optimised ? 0.5f : 0;
+	ga.additional_parameters_["gene_mutation_rate"] = 0.05f;
+	ga.additional_parameters_["tournament_size"] = optimised ? 2 : 4;
+
+	return ga;
+}
+
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 5, 2.048f);
+	/*std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 5, 2.048f);
 	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RosenbrockFitness, true, 5, 2.048f);
 
 	int base_test_size = 20;
 	float test_size_increase_rate = 2;
 	float elimination_rate = 0.85f;
 
-	int final_test_size = 100000;
+	int final_test_size = 100000;*/
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	auto result = TestSuite<float>::RunDetailedTest(standard_gas[0], 10, 1000);
-	SaveDetailedTest(result, 1000, standard_gas[0].DumpParameters(), directory);
+	RunCompleteDetailedTest(MakeOneMax(10000, true), 100000, 200, directory);
 	system("PAUSE");
 	return 0;
 }

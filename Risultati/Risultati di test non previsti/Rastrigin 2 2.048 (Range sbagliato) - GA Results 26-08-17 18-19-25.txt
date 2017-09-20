@@ -1,0 +1,30 @@
+BEST STANDARD (909):
+Chromosome Length: 2
+Population Size: 100
+Mutation Probability: 0.150000
+Crossover Probability: 0.800000
+Elitism Rate: 0.100000
+Recombination Rate: 0.000000
+Additional Parameters:
+-crossover_ratio: 0.000000
+-gene_mutation_rate: 0.150000
+-range_max: 2.048000
+-range_min: -2.048000
+-relative_mutation_size: 0.050000
+-tournament_size: 3.000000
+
+BEST OPTIMISED(633):
+Chromosome Length: 2
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.800000
+Elitism Rate: 0.150000
+Recombination Rate: 0.800000
+Additional Parameters:
+-crossover_ratio: 0.000000
+-gene_mutation_rate: 0.050000
+-range_max: 2.048000
+-range_min: -2.048000
+-relative_mutation_size: 0.050000
+-tournament_size: 5.000000
+

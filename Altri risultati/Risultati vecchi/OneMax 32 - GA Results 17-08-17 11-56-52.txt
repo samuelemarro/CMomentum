@@ -1,0 +1,22 @@
+BEST STANDARD (595):
+Chromosome Length: 32
+Population Size: 100
+Mutation Probability: 0.100000
+Crossover Probability: 0.600000
+Elitism Rate: 0.150000
+Recombination Rate: 0.000000
+Additional Parameters:
+-gene_mutation_rate: 0.050000
+-tournament_size: 5.000000
+
+BEST OPTIMISED(578):
+Chromosome Length: 32
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.600000
+Elitism Rate: 0.150000
+Recombination Rate: 0.500000
+Additional Parameters:
+-gene_mutation_rate: 0.050000
+-tournament_size: 5.000000
+

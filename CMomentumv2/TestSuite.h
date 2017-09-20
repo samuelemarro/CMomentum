@@ -176,15 +176,14 @@ public:
 		return MathUtility::Median(evaluations);
 	}
 
-	static std::pair<DataPoint, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
+	static std::vector<DataPoint> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
 		
-		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_fitness_evaluations_ != -1) {
-			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain generation." << std::endl;
+		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_generation_ != -1) {
+			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain evaluation number." << std::endl;
 			std::cout << "Using other types of termination might lead to unexpected results, for example the best fitness worsening after reaching the termination." << std::endl;
 			std::cout << "This is caused by the fact that GAs that have reached the termination stop outputting further results." << std::endl;
 		}
 		
-		std::vector<float> evaluations = std::vector<float>();
 		//Each inner vector corresponds to a generation
 		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
 
@@ -196,7 +195,7 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				float evaluation = ga.RunAlgorithm(true, snapshot_period);
+				ga.RunAlgorithm(true, snapshot_period);
 				
 #pragma omp critical
 				{
@@ -209,7 +208,6 @@ public:
 					for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
 						final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
 					}
-					evaluations.push_back(evaluation);
 				}
 
 				executed_tests++;
@@ -224,7 +222,7 @@ public:
 			datapoints.push_back(DataPoint(cluster));
 		}
 
-		return std::make_pair(DataPoint(evaluations), datapoints);
+		return datapoints;
 	}
 	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
