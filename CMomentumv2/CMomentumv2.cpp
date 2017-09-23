@@ -450,6 +450,7 @@ void SaveDetailedTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> 
 	std::ofstream result_file(file_path);
 
 	result_file << extra_info << "\n\n";
+
 	result_file << "FITNESS STATS:\n";
 	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
 
@@ -459,7 +460,6 @@ void SaveDetailedTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> 
 		snapshot_evaluations_fitness += snapshot_period;
 	}
 
-	result_file << extra_info << "\n\n";
 	result_file << "DIVERSITY STATS:\n";
 	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
 
