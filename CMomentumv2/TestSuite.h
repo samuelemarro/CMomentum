@@ -176,7 +176,7 @@ public:
 		return MathUtility::Median(evaluations);
 	}
 
-	static std::vector<DataPoint> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
+	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
 		
 		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_generation_ != -1) {
 			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain evaluation number." << std::endl;
@@ -184,8 +184,9 @@ public:
 			std::cout << "This is caused by the fact that GAs that have reached the termination stop outputting further results." << std::endl;
 		}
 		
-		//Each inner vector corresponds to a generation
+		//Fitness and diversity tracking. Each inner vector corresponds to a generation
 		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
+		std::vector<std::vector<float>> final_diversity_values = std::vector<std::vector<float>>();
 
 		int executed_tests = 0;
 		std::random_device seed_generator;
@@ -202,11 +203,13 @@ public:
 					//If final_fitness_values has 500 generations and tracked_fitness_values has 1000, make room for more
 					for (int i = final_fitness_values.size(); i < ga.tracked_fitness_values.size(); i++) {
 						final_fitness_values.push_back(std::vector<float>());
+						final_diversity_values.push_back(std::vector<float>());
 					}
 
 					//Add the fitness values of each generation to its corresponding slot
 					for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
 						final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
+						final_diversity_values[i].push_back(ga.tracked_diversity_values[i]);
 					}
 				}
 
@@ -217,12 +220,15 @@ public:
 			}
 		}
 
-		std::vector<DataPoint> datapoints = std::vector<DataPoint>();
-		for (std::vector<float> cluster : final_fitness_values) {
-			datapoints.push_back(DataPoint(cluster));
+		std::vector<DataPoint> fitness_datapoints = std::vector<DataPoint>();
+		std::vector<DataPoint> diversity_datapoints = std::vector<DataPoint>();
+
+		for (int i = 0; i < final_fitness_values.size(); i++) {
+			fitness_datapoints.push_back(DataPoint(final_fitness_values[i]));
+			diversity_datapoints.push_back(DataPoint(final_diversity_values[i]));
 		}
 
-		return datapoints;
+		return std::make_pair(fitness_datapoints, diversity_datapoints);
 	}
 	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 

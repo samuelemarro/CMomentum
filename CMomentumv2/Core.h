@@ -65,6 +65,7 @@ public:
 	float target_fitness_ = FLT_MAX;
 
 	std::vector<std::vector<float>> tracked_fitness_values;
+	std::vector<float> tracked_diversity_values;
 
 	GeneticAlgorithm(
 		std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization,
@@ -82,16 +83,15 @@ public:
 	{
 		CheckFunctions();
 	}
-
 	int RunAlgoritm() {
 		return RunAlgorithm(false, 0);
 	}
 
-	int RunAlgorithm(bool track_fitness, int snapshot_period) {
+	int RunAlgorithm(bool track_stats, int snapshot_period) {
 		CheckFunctions();
 		CheckParameters();
 
-		if (track_fitness && snapshot_period < population_size_) {
+		if (track_stats && snapshot_period < population_size_) {
 			throw std::invalid_argument("The parameter \"snapshot_period\" must be bigger than or equal to \"population_size\"");
 		}
 
@@ -116,21 +116,13 @@ public:
 		fitness_evaluations += population_size_;
 
 		//Store the initial population
-		if (track_fitness) {
-			std::vector<float> fitness_values = std::vector<float>();
-			for (auto& chromosome : population) {
-				fitness_values.push_back(chromosome->fitness_);
-			}
-			tracked_fitness_values.push_back(fitness_values);
+		if (track_stats) {
+			StoreTracking(population);
 		}
 
 		//If necessary, take a snapshot of the initial population (only happens when snapshot_period = population_size_)
-		if (track_fitness && fitness_evaluations % snapshot_period == 0) {
-			std::vector<float> fitness_values = std::vector<float>();
-			for (auto& chromosome : population) {
-				fitness_values.push_back(chromosome->fitness_);
-			}
-			tracked_fitness_values.push_back(fitness_values);
+		if (track_stats && fitness_evaluations % snapshot_period == 0) {
+			StoreTracking(population);
 		}
 
 		//Sort the population by fitness in descending order
@@ -201,7 +193,7 @@ public:
 					//If the evaluation count reaches the one required for a snapshot, mark it
 					//so that it will take a snapshot once the fitness values have been updated.
 					//The second condition is used to prevent taking snapshots after fitness_evaluations has reached the maximum.
-					if (track_fitness && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
+					if (track_stats && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
 						take_snapshot = true;
 					}
 
@@ -228,12 +220,8 @@ public:
 			population = std::move(offspring);
 
 			//Store the fitness values of the snapshot
-			if (track_fitness && take_snapshot) {
-				std::vector<float> fitness_values = std::vector<float>();
-				for (auto& chromosome : population) {
-					fitness_values.push_back(chromosome->fitness_);
-				}
-				tracked_fitness_values.push_back(fitness_values);
+			if (track_stats && take_snapshot) {
+				StoreTracking(population);
 			}
 
 			//Sort the population by fitness in descending order
@@ -298,6 +286,33 @@ private:
 		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == -1 && max_generation_ == -1) {
 			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
 		}
+	}
+	void StoreTracking(std::vector<std::unique_ptr<Chromosome<T>>>& population) {
+		//Store the fitness values
+		std::vector<float> fitness_values = std::vector<float>();
+		for (auto& chromosome : population) {
+			fitness_values.push_back(chromosome->fitness_);
+		}
+		tracked_fitness_values.push_back(fitness_values);
+
+		//Compute the Moment-Of-Inertia Diversity Measure (Measurement of Population Diversity, 2001, Morrison and DeJong)
+		std::vector<float> centroid = std::vector<float>();
+		for (int i = 0; i < chromosome_length_; i++) {
+			float coordinate = 0;
+			for (int j = 0; j < population_size_; j++) {
+				coordinate += population[j]->genes_[i];
+			}
+			centroid.push_back(coordinate / population_size_);
+		}
+
+		float moment_of_inertia = 0;
+		for (int i = 0; i < chromosome_length_; i++) {
+			for (int j = 0; j < population_size_; j++) {
+				moment_of_inertia += (population[j]->genes_[i] - centroid[i]) * (population[j]->genes_[i] - centroid[i]);
+			}
+		}
+
+		tracked_diversity_values.push_back(moment_of_inertia);
 	}
 };
 

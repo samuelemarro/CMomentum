@@ -442,7 +442,7 @@ std::string DataPointToCSVLine(DataPoint datapoint, std::string separator) {
 		std::to_string(datapoint.max);
 }
 
-void SaveDetailedTest(std::vector<DataPoint> result, int snapshot_period, std::string extra_info, std::string directory) {
+void SaveDetailedTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result, int snapshot_period, std::string extra_info, std::string directory) {
 	directory.erase(directory.find_last_of('\\') + 1);
 	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 	std::string file_path = directory + "GA Detailed Results " + finish_time + ".txt";
@@ -453,10 +453,20 @@ void SaveDetailedTest(std::vector<DataPoint> result, int snapshot_period, std::s
 	result_file << "FITNESS STATS:\n";
 	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
 
-	int snapshot_evaluations = 0;
-	for (DataPoint datapoint : result) {
-		result_file << snapshot_evaluations << ";" << DataPointToCSVLine(datapoint, "; ") << "\n";
-		snapshot_evaluations += snapshot_period;
+	int snapshot_evaluations_fitness = 0;
+	for (DataPoint datapoint : result.first) {
+		result_file << snapshot_evaluations_fitness << ";" << DataPointToCSVLine(datapoint, ";") << "\n";
+		snapshot_evaluations_fitness += snapshot_period;
+	}
+
+	result_file << extra_info << "\n\n";
+	result_file << "DIVERSITY STATS:\n";
+	result_file << "Evaluations;Average;Standard Deviation;Min;Q1;Median(Q2);Q3;Max\n";
+
+	int snapshot_evaluations_diversity = 0;
+	for (DataPoint datapoint : result.second) {
+		result_file << snapshot_evaluations_diversity << ";" << DataPointToCSVLine(datapoint, ";") << "\n";
+		snapshot_evaluations_diversity += snapshot_period;
 	}
 
 	result_file.flush();
@@ -467,7 +477,7 @@ void SaveDetailedTest(std::vector<DataPoint> result, int snapshot_period, std::s
 
 template<typename T>
 void RunCompleteDetailedTest(GeneticAlgorithm<T> ga, int test_size, int snapshot_period, std::string directory) {
-	auto result = TestSuite<T>::RunDetailedTest(ga, test_size, snapshot_period);
+	std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result = TestSuite<T>::RunDetailedTest(ga, test_size, snapshot_period);
 	SaveDetailedTest(result, snapshot_period,
 		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSnapshot Period: " + std::to_string(snapshot_period) + "\nEvaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\n",
 		directory);
@@ -488,6 +498,35 @@ GeneticAlgorithm<bool> MakeOneMax(int max_evaluations, bool optimised) {
 	return ga;
 }
 
+GeneticAlgorithm<float> MakeSphere(int max_evaluations, bool optimised) {
+	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
+		UniformInitialization,
+		TournamentSelection<float>,
+		IntermediateCrossover,
+		RealValuedMutation,
+		RealValuedRecombination,
+		SphereFitness);
+
+	ga.max_fitness_evaluations_ = max_evaluations;
+	ga.chromosome_length_ = 20;
+
+	ga.population_size_ = 100;
+	ga.mutation_probability_ = optimised ? 0.05f : 0.15f;
+	ga.crossover_probability_ = 0.6f;
+	ga.elitism_rate_ = optimised ? 0.05f : 0.15f;
+	ga.recombination_rate_ = optimised ? 0.3f : 0;
+
+	ga.additional_parameters_["range_min"] = -5.12f;
+	ga.additional_parameters_["range_max"] = 5.12f;
+
+	ga.additional_parameters_["tournament_size"] = optimised ? 3 : 5;
+	ga.additional_parameters_["gene_mutation_rate"] = 0.05f;
+	ga.additional_parameters_["relative_mutation_size"] = 0.05f;
+	ga.additional_parameters_["crossover_ratio"] = 0.25f;
+
+	return ga;
+}
+
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
@@ -502,7 +541,7 @@ int main(int argc, char **argv)
 	int final_test_size = 100000;*/
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	RunCompleteDetailedTest(MakeOneMax(10000, true), 100000, 200, directory);
+	RunCompleteDetailedTest(MakeOneMax(10000, false), 100000, 200, directory);
 	system("PAUSE");
 	return 0;
 }
