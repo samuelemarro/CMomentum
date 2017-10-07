@@ -8,6 +8,7 @@
 #include <math.h>
 #include <numeric>
 #include <type_traits>
+#include <omp.h>
 
 static class MathUtility {
 	template<typename T>
@@ -122,8 +123,7 @@ public:
 				FastRand::Seed(seed_generator());
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
-
-				float evaluation = ga.RunAlgorithm(false);
+				float evaluation = ga.RunAlgorithm();
 
 #pragma omp critical
 				{
@@ -139,7 +139,7 @@ public:
 
 		for (int i = 0; i < results.size(); i++)
 		{
-			results[i].median_ = Median(results[i].evaluations_);
+			results[i].median_ = MathUtility::Median(results[i].evaluations_);
 		}
 
 		std::cout << "\n";
@@ -158,7 +158,7 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				float evaluation = ga.RunAlgorithm(false);
+				float evaluation = ga.RunAlgorithm();
 #pragma omp critical
 				{
 					evaluations.push_back(evaluation);

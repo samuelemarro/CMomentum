@@ -83,7 +83,7 @@ public:
 	{
 		CheckFunctions();
 	}
-	int RunAlgoritm() {
+	int RunAlgorithm() {
 		return RunAlgorithm(false, 0);
 	}
 

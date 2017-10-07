@@ -249,7 +249,7 @@ std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome
 
 	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
 
-	std::vector<int> population_sizes = { 100, 200, 300 };
+	std::vector<int> population_sizes = { 100, 200 };
 	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
 	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
 	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
@@ -258,7 +258,7 @@ std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome
 	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
 	std::vector<float> recombination_rates;
 	if (optimised) {
-		recombination_rates = { 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f };
+		recombination_rates = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f };
 	}
 	else {
 		recombination_rates = { 0 };
@@ -309,10 +309,10 @@ std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome
 	return gas;
 }
 
-std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chromosome<float>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length, float bound) {
+std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chromosome<float>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length, float bound, float target) {
 	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
 
-	std::vector<int> population_sizes = { 100, 200, 300 };
+	std::vector<int> population_sizes = { 100, 200 };
 	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
 	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
 	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
@@ -325,7 +325,7 @@ std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chrom
 
 	std::vector<float> recombination_rates;
 	if (optimised) {
-		recombination_rates = { 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f };
+		recombination_rates = { 0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.3f/*, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1*/ };
 	}
 	else {
 		recombination_rates = { 0 };
@@ -348,7 +348,7 @@ std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chrom
 											RealValuedRecombination,
 											fitness);
 
-										ga.target_fitness_ = -0.001f;
+										ga.target_fitness_ = target;
 
 										ga.chromosome_length_ = chromosome_length;
 
@@ -528,6 +528,7 @@ GeneticAlgorithm<float> MakeSphere20(int max_evaluations, bool optimised) {
 	return ga;
 }
 
+//Vecchio. TODO: Aggiornare con i valori nuovi
 GeneticAlgorithm<float> MakeRastrigin5(int max_evaluations, bool optimised) {
 	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
 		UniformInitialization,
@@ -535,7 +536,7 @@ GeneticAlgorithm<float> MakeRastrigin5(int max_evaluations, bool optimised) {
 		IntermediateCrossover,
 		RealValuedMutation,
 		RealValuedRecombination,
-		SphereFitness);
+		RastriginFitness);
 
 	ga.max_fitness_evaluations_ = max_evaluations;
 	ga.chromosome_length_ = 5;
@@ -561,17 +562,17 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	/*std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RosenbrockFitness, false, 5, 2.048f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RosenbrockFitness, true, 5, 2.048f);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(SphereFitness, false, 20, 5.12f, -1e-5f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(SphereFitness, true, 20, 5.12f, -1e-5f);
 
-	int base_test_size = 20;
-	float test_size_increase_rate = 2;
-	float elimination_rate = 0.85f;
+	int base_test_size = 10;
+	float test_size_increase_rate = 1;
+	float elimination_rate = 0.9f;
 
-	int final_test_size = 100000;*/
+	int final_test_size = 100000;
 
-	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	RunCompleteDetailedTest(MakeRastrigin5(50000, false), 100000, 1000, directory, true);
+	RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
+	//RunCompleteDetailedTest(MakeRastrigin5(50000, true), 100000, 1000, directory, true);
 	system("PAUSE");
 	return 0;
 }
