@@ -113,6 +113,10 @@ void BinaryRecombination(Chromosome<bool>& current, const Parent<bool>& parent, 
 	if (recombination_rate != 0) {
 		std::vector<int> diff = ComputeDiff(current, parent);
 
+		if (diff.size() == 0) {
+			return;
+		}
+
 		int recombinations = FastRand::PolinomialInt(recombination_rate, diff.size());
 
 		for (int i = 0; i < recombinations; i++) {
@@ -129,6 +133,11 @@ void BinaryRecombination(Chromosome<bool>& current, const Parent<bool>& parent, 
 void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
 	if (recombination_rate != 0) {
 		std::vector<int> diff = ComputeDiff(current, parent);
+
+		if (diff.size() == 0) {
+			return;
+		}
+
 		float range_min = additional_parameters["range_min"];
 		float range_max = additional_parameters["range_max"];
 		float mutation_size = additional_parameters["relative_mutation_size"] * (range_max - range_min);
@@ -571,8 +580,8 @@ int main(int argc, char **argv)
 
 	int final_test_size = 100000;
 
-	RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	//RunCompleteDetailedTest(MakeRastrigin5(50000, true), 100000, 1000, directory, true);
+	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
+	RunCompleteDetailedTest(MakeRastrigin5(50000, true), 100000, 1000, directory, true);
 	system("PAUSE");
 	return 0;
 }

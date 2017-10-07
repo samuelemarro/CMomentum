@@ -68,6 +68,10 @@ public:
 
 	}
 	DataPoint(std::vector<float> data, bool is_sorted) {
+		if (data.size() < 2) {
+			throw std::invalid_argument("The size of data must be at least 2.");
+		}
+
 		min = *std::min_element(data.begin(), data.end());
 		max = *std::max_element(data.begin(), data.end());
 		if (!is_sorted) {
@@ -78,7 +82,7 @@ public:
 		median = MathUtility::Median(data, true);
 
 		//Remove the middle element to split correctly data in two parts
-		if (data.size() % 2 != 0) {
+		if (data.size() % 2 != 0 && data.size() > 1) {
 			int middle_position = (data.size() + 1) / 2;
 			data.erase(data.begin() + middle_position);
 		}

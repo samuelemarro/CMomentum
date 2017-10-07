@@ -145,11 +145,6 @@ public:
 				elitism_size--;
 			}
 
-			for (int i = 0; i < elitism_size; i++) {
-				Chromosome<T>* parent = new Chromosome<T>(*population[i]);
-				offspring.push_back(std::unique_ptr<Chromosome<T>>(parent));
-			}
-
 			for (int i = 0; i < population_size_ - elitism_size; i += 2) {
 				std::pair<Chromosome<T>*, Chromosome<T>*> parents = selection_(population, additional_parameters_);
 
@@ -184,6 +179,25 @@ public:
 					chromosome->fitness_is_valid_ = false;
 				}
 
+				if (chromosome->has_parents_) {
+					//If both parents are eligible, pick one randomly
+					if (chromosome->fitness_ < chromosome->parent1_.fitness_ && chromosome->fitness_ < chromosome->parent2_.fitness_)
+					{
+						if (FastRand::RandomInt(2) == 0) {
+							recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
+						}
+						else {
+							recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
+						}
+					}
+					else if (chromosome->fitness_ < chromosome->parent1_.fitness_) {
+						recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
+					}
+					else if (chromosome->fitness_ < chromosome->parent2_.fitness_) {
+						recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
+					}
+				}
+
 				if (!chromosome->fitness_is_valid_) {
 					chromosome->fitness_ = fitness_function_(*chromosome, additional_parameters_);
 					chromosome->fitness_is_valid_ = true;
@@ -196,27 +210,15 @@ public:
 					if (track_stats && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
 						take_snapshot = true;
 					}
-
-					if (chromosome->has_parents_) {
-						//If both parents are eligible, pick one randomly
-						if (chromosome->fitness_ < chromosome->parent1_.fitness_ && chromosome->fitness_ < chromosome->parent2_.fitness_)
-						{
-							if (FastRand::RandomInt(2) == 0) {
-								recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
-							}
-							else {
-								recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
-							}
-						}
-						else if (chromosome->fitness_ < chromosome->parent1_.fitness_) {
-							recombination_(*chromosome, chromosome->parent1_, recombination_rate_, additional_parameters_);
-						}
-						else if (chromosome->fitness_ < chromosome->parent2_.fitness_) {
-							recombination_(*chromosome, chromosome->parent2_, recombination_rate_, additional_parameters_);
-						}
-					}
 				}
 			}
+
+			for (int i = 0; i < elitism_size; i++) {
+				//The population is sorted by fitness in descending order
+				Chromosome<T>* parent = new Chromosome<T>(*population[i]);
+				offspring.push_back(std::unique_ptr<Chromosome<T>>(parent));
+			}
+
 			population = std::move(offspring);
 
 			//Store the fitness values of the snapshot
