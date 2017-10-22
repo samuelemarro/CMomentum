@@ -22,8 +22,8 @@ private:
 	}
 	template<typename T,
 		typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
-	static float Median(std::vector<T> vector, bool is_sorted) {
-		
+		static float Median(std::vector<T> vector, bool is_sorted) {
+
 		float median = 0;
 
 		if (!is_sorted) {
@@ -93,6 +93,12 @@ public:
 	}
 };
 
+enum TrackingType {
+	Fitness,
+	Diversity,
+	Both
+};
+
 template<typename T>
 class TestSuite {
 	template<typename T>
@@ -127,7 +133,7 @@ public:
 				FastRand::Seed(seed_generator());
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
-				float evaluation = ga.RunAlgorithm();
+				float evaluation = ga.RunAlgorithm(false, false, 0);
 
 #pragma omp critical
 				{
@@ -162,7 +168,7 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				float evaluation = ga.RunAlgorithm();
+				float evaluation = ga.RunAlgorithm(false, false, 0);
 #pragma omp critical
 				{
 					evaluations.push_back(evaluation);
@@ -180,14 +186,17 @@ public:
 		return MathUtility::Median(evaluations);
 	}
 
-	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, int snapshot_period) {
-		
+	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, TrackingType tracking_type, int snapshot_period) {
+
 		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_generation_ != -1) {
 			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain evaluation number." << std::endl;
 			std::cout << "Using other types of termination might lead to unexpected results, for example the best fitness worsening after reaching the termination." << std::endl;
 			std::cout << "This is caused by the fact that GAs that have reached the termination stop outputting further results." << std::endl;
 		}
-		
+
+		bool track_fitness = tracking_type == TrackingType::Fitness || tracking_type == TrackingType::Both;
+		bool track_diversity = tracking_type == TrackingType::Diversity || tracking_type == TrackingType::Both;
+
 		//Fitness and diversity tracking. Each inner vector corresponds to a generation
 		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
 		std::vector<std::vector<float>> final_diversity_values = std::vector<std::vector<float>>();
@@ -200,20 +209,30 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				ga.RunAlgorithm(true, snapshot_period);
-				
+				ga.RunAlgorithm(track_fitness, track_diversity, snapshot_period);
+
 #pragma omp critical
 				{
 					//If final_fitness_values has 500 generations and tracked_fitness_values has 1000, make room for more
-					for (int i = final_fitness_values.size(); i < ga.tracked_fitness_values.size(); i++) {
-						final_fitness_values.push_back(std::vector<float>());
-						final_diversity_values.push_back(std::vector<float>());
+					if (track_fitness && final_fitness_values.size() < ga.tracked_fitness_values.size()) {
+						final_fitness_values.resize(ga.tracked_fitness_values.size(), std::vector<float>());
+					}
+					//Same goes for diversity
+					if (track_diversity && final_diversity_values.size() < ga.tracked_diversity_values.size()) {
+						final_diversity_values.resize(ga.tracked_diversity_values.size(), std::vector<float>());
 					}
 
 					//Add the fitness values of each generation to its corresponding slot
-					for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
-						final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
-						final_diversity_values[i].push_back(ga.tracked_diversity_values[i]);
+					if (track_fitness) {
+						for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
+							final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
+						}
+					}
+					//Add the diversity value of each generation to its corresponding slot
+					if(track_diversity){
+						for (int i = 0; i < ga.tracked_diversity_values.size(); i++) {
+							final_diversity_values[i].push_back(ga.tracked_diversity_values[i]);
+						}
 					}
 				}
 
@@ -226,10 +245,16 @@ public:
 
 		std::vector<DataPoint> fitness_datapoints = std::vector<DataPoint>();
 		std::vector<DataPoint> diversity_datapoints = std::vector<DataPoint>();
+		if (track_fitness) {
+			for (int i = 0; i < final_fitness_values.size(); i++) {
+				fitness_datapoints.push_back(DataPoint(final_fitness_values[i]));
+			}
+		}
 
-		for (int i = 0; i < final_fitness_values.size(); i++) {
-			fitness_datapoints.push_back(DataPoint(final_fitness_values[i]));
-			diversity_datapoints.push_back(DataPoint(final_diversity_values[i]));
+		if (track_diversity) {
+			for (int i = 0; i < final_diversity_values.size(); i++) {
+				diversity_datapoints.push_back(DataPoint(final_diversity_values[i]));
+			}
 		}
 
 		return std::make_pair(fitness_datapoints, diversity_datapoints);

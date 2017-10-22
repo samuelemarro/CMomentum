@@ -1,0 +1,30 @@
+BEST STANDARD (4506):
+Chromosome Length: 5
+Population Size: 100
+Mutation Probability: 0.150000
+Crossover Probability: 0.650000
+Elitism Rate: 0.150000
+Recombination Rate: 0.000000
+Additional Parameters:
+-crossover_ratio: 0.250000
+-gene_mutation_rate: 0.150000
+-range_max: 600.000000
+-range_min: -600.000000
+-relative_mutation_size: 0.050000
+-tournament_size: 5.000000
+
+BEST OPTIMISED(2889):
+Chromosome Length: 5
+Population Size: 100
+Mutation Probability: 0.050000
+Crossover Probability: 0.750000
+Elitism Rate: 0.050000
+Recombination Rate: 0.200000
+Additional Parameters:
+-crossover_ratio: 0.000000
+-gene_mutation_rate: 0.150000
+-range_max: 600.000000
+-range_min: -600.000000
+-relative_mutation_size: 0.050000
+-tournament_size: 3.000000
+
