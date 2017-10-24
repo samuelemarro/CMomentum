@@ -112,6 +112,7 @@ class TestSuite {
 			evaluations_.reserve(evaluations_size);
 		}
 	};
+
 public:
 	static std::vector<TestSuite::PartialTestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
@@ -134,7 +135,6 @@ public:
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
 				float evaluation = ga.RunAlgorithm(false, false, 0);
-
 #pragma omp critical
 				{
 					results[ga_index].evaluations_.push_back(evaluation);
@@ -156,10 +156,8 @@ public:
 
 		return results;
 	}
-	static float RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
-
+	static std::vector<int> EvaluationsTest(GeneticAlgorithm<T> base_ga, int test_size) {
 		std::vector<int> evaluations = std::vector<int>();
-
 		int executed_tests = 0;
 		std::random_device seed_generator;
 #pragma omp parallel
@@ -182,11 +180,39 @@ public:
 		}
 
 		std::cout << "\n";
-
+		return evaluations;
+	}
+	static float RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
+		std::vector<int> evaluations = EvaluationsTest(base_ga, test_size);
 		return MathUtility::Median(evaluations);
 	}
 
-	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunDetailedTest(GeneticAlgorithm<T> base_ga, int test_size, TrackingType tracking_type, int snapshot_period) {
+	static std::vector<float> SuccessRatesTest(GeneticAlgorithm<T> base_ga, int test_size, int section_size) {
+		std::vector<int> evaluations = EvaluationsTest(base_ga, test_size);
+		std::vector<int> successful_tests = std::vector<int>();
+		std::sort(evaluations.begin(), evaluations.end());
+		int current_section = 0;
+		for(int evaluation : evaluations) {
+			int floored = evaluation - (evaluation % section_size);
+			int index = floored / section_size;
+			if (successful_tests.size() < index + 1) {
+				successful_tests.resize(index + 1);
+			}
+			successful_tests[index]++;
+		}
+
+		std::vector<float> success_rates = std::vector<float>();
+
+		//Compute the success rate
+		success_rates.push_back(static_cast<float>(successful_tests[0]) / evaluations.size());
+		for (int i = 1; i < successful_tests.size(); i++) {
+			success_rates.push_back(static_cast<float>(successful_tests[i]) / evaluations.size());
+		}
+
+		return success_rates;
+	}
+
+	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunPopulationTest(GeneticAlgorithm<T> base_ga, int test_size, TrackingType tracking_type, int snapshot_period) {
 
 		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_generation_ != -1) {
 			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain evaluation number." << std::endl;

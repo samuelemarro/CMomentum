@@ -451,10 +451,10 @@ std::string DataPointToCSVLine(DataPoint datapoint, std::string separator) {
 		std::to_string(datapoint.max);
 }
 
-void SaveDetailedTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result, int snapshot_period, TrackingType tracking_type, std::string extra_info, std::string directory, bool show_results) {
+void SavePopulationTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result, int snapshot_period, TrackingType tracking_type, std::string extra_info, std::string directory, bool show_results) {
 	directory.erase(directory.find_last_of('\\') + 1);
 	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
-	std::string file_path = directory + "GA Detailed Results " + finish_time + ".txt";
+	std::string file_path = directory + "GA Population Results " + finish_time + ".txt";
 
 	std::ofstream result_file(file_path);
 
@@ -490,16 +490,44 @@ void SaveDetailedTest(std::pair<std::vector<DataPoint>, std::vector<DataPoint>> 
 }
 
 template<typename T>
-void RunCompleteDetailedTest(GeneticAlgorithm<T> ga, int test_size, TrackingType tracking_type, int snapshot_period, std::string directory, bool show_results) {
-	std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result = TestSuite<T>::RunDetailedTest(ga, test_size, tracking_type, snapshot_period);
-	SaveDetailedTest(result, snapshot_period, tracking_type,
+void RunPopulationTest(GeneticAlgorithm<T> ga, int test_size, TrackingType tracking_type, int snapshot_period, std::string directory, bool show_results) {
+	std::pair<std::vector<DataPoint>, std::vector<DataPoint>> result = TestSuite<T>::RunPopulationTest(ga, test_size, tracking_type, snapshot_period);
+	SavePopulationTest(result, snapshot_period, tracking_type,
 		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSnapshot Period: " + std::to_string(snapshot_period) + "\nEvaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\n",
 		directory, show_results);
 }
 
-GeneticAlgorithm<bool> MakeOneMax80(int max_evaluations, bool optimised) {
+void SaveSuccessRatesTest(std::vector<float> success_rates, int section_size, std::string extra_info, std::string directory, bool show_results) {
+	directory.erase(directory.find_last_of('\\') + 1);
+	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
+	std::string file_path = directory + "GA Success Rate Results " + finish_time + ".txt";
+
+	std::ofstream result_file(file_path);
+
+	result_file << extra_info << "\n\n";
+
+	int section_counter = section_size;
+	for (int i = 0; i < success_rates.size(); i++) {
+		result_file << std::to_string(section_counter) << ";" << std::to_string(success_rates[i]) << "\n";
+		section_counter += section_size;
+	}
+	result_file.flush();
+	result_file.close();
+	if (show_results) {
+		system(("notepad.exe " + file_path).c_str());
+	}
+}
+
+template<typename T>
+void RunSuccessRateTest(GeneticAlgorithm<T> ga, int test_size, int section_size, std::string directory, bool show_results) {
+	std::vector<float> result = TestSuite<T>::SuccessRatesTest(ga, test_size, section_size);
+	SaveSuccessRatesTest(result, section_size,
+		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSection Size: " + std::to_string(section_size) + "\nMax Evaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\n",
+		directory, show_results);
+}
+
+GeneticAlgorithm<bool> MakeOneMax80(bool optimised) {
 	GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(BinaryInitialization, TournamentSelection<bool>, TwoPointCrossover<bool>, BitFlipMutation, BinaryRecombination, OneMaxFitness);
-	ga.max_fitness_evaluations_ = max_evaluations;
 	ga.chromosome_length_ = 80;
 	ga.population_size_ = optimised ? 100 : 200;
 	ga.mutation_probability_ = 0.15f;
@@ -512,7 +540,7 @@ GeneticAlgorithm<bool> MakeOneMax80(int max_evaluations, bool optimised) {
 	return ga;
 }
 
-GeneticAlgorithm<float> MakeSphere20(int max_evaluations, bool optimised) {
+GeneticAlgorithm<float> MakeSphere20(bool optimised) {
 	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
 		UniformInitialization,
 		TournamentSelection<float>,
@@ -521,7 +549,6 @@ GeneticAlgorithm<float> MakeSphere20(int max_evaluations, bool optimised) {
 		RealValuedRecombination,
 		SphereFitness);
 
-	ga.max_fitness_evaluations_ = max_evaluations;
 	ga.chromosome_length_ = 20;
 
 	ga.population_size_ = 100;
@@ -541,7 +568,7 @@ GeneticAlgorithm<float> MakeSphere20(int max_evaluations, bool optimised) {
 	return ga;
 }
 
-GeneticAlgorithm<float> MakeRastrigin5(int max_evaluations, bool optimised) {
+GeneticAlgorithm<float> MakeRastrigin5(bool optimised) {
 	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
 		UniformInitialization,
 		TournamentSelection<float>,
@@ -550,7 +577,6 @@ GeneticAlgorithm<float> MakeRastrigin5(int max_evaluations, bool optimised) {
 		RealValuedRecombination,
 		RastriginFitness);
 
-	ga.max_fitness_evaluations_ = max_evaluations;
 	ga.chromosome_length_ = 5;
 
 	ga.population_size_ = 100;
@@ -570,7 +596,7 @@ GeneticAlgorithm<float> MakeRastrigin5(int max_evaluations, bool optimised) {
 	return ga;
 }
 
-GeneticAlgorithm<float> MakeGriewank5(int max_evaluations, bool optimised) {
+GeneticAlgorithm<float> MakeGriewank5(bool optimised) {
 	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
 		UniformInitialization,
 		TournamentSelection<float>,
@@ -579,7 +605,6 @@ GeneticAlgorithm<float> MakeGriewank5(int max_evaluations, bool optimised) {
 		RealValuedRecombination,
 		RastriginFitness);
 
-	ga.max_fitness_evaluations_ = max_evaluations;
 	ga.chromosome_length_ = 5;
 
 	ga.population_size_ = 100;
@@ -612,8 +637,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(GriewankFitness, false, 5, 600, -1e-1f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(GriewankFitness, true, 5, 600, -1e-1f);
+	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f);
+	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RastriginFitness, true, 5, 5.12f, -1e-5f);
 	//std::vector<GeneticAlgorithm<bool>> standard_gas = MakeBinaryGas(OneMaxFitness, false, 80, 0);
 	//std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeBinaryGas(OneMaxFitness, true, 80, 0);
 
@@ -623,8 +648,16 @@ int main(int argc, char **argv)
 
 	int final_test_size = 100000;
 
-	RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
-	//RunCompleteDetailedTest(MakeGriewank5(100000, false), 100000, TrackingType::Both, 2000, directory, true);
+	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
+	
+	GeneticAlgorithm<float> ga = MakeSphere20(true);
+	ga.target_fitness_ = -1e-5;
+	ga.max_fitness_evaluations_ = 200000;
+	
+	//RunPopulationTest(MakeGriewank5(100000, false), 100000, TrackingType::Both, 2000, directory, true);
+	
+	RunSuccessRateTest(ga, 100000, 500, directory, true);
+
 	system("PAUSE");
 	return 0;
 }

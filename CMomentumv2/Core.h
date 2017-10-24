@@ -200,7 +200,7 @@ public:
 					//If the evaluation count reaches the one required for a snapshot, mark it
 					//so that it will take a snapshot once the fitness values have been updated.
 					//The second condition is used to prevent taking snapshots after fitness_evaluations has reached the maximum.
-					if (fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
+					if ((track_fitness || track_diversity) && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
 						take_snapshot = true;
 					}
 				}
