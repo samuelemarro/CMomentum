@@ -522,7 +522,7 @@ template<typename T>
 void RunSuccessRateTest(GeneticAlgorithm<T> ga, int test_size, int section_size, std::string directory, bool show_results) {
 	std::vector<float> result = TestSuite<T>::SuccessRatesTest(ga, test_size, section_size);
 	SaveSuccessRatesTest(result, section_size,
-		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSection Size: " + std::to_string(section_size) + "\nMax Evaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\n",
+		ga.DumpParameters() + "\n\nTest size: " + std::to_string(test_size) + "\nSection Size: " + std::to_string(section_size) + "\nMax Evaluations: " + std::to_string(ga.max_fitness_evaluations_) + "\nTarget: " + std::to_string(ga.target_fitness_) + "\n",
 		directory, show_results);
 }
 
@@ -603,7 +603,7 @@ GeneticAlgorithm<float> MakeGriewank5(bool optimised) {
 		IntermediateCrossover,
 		RealValuedMutation,
 		RealValuedRecombination,
-		RastriginFitness);
+		GriewankFitness);
 
 	ga.chromosome_length_ = 5;
 
@@ -637,8 +637,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f);
-	std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RastriginFitness, true, 5, 5.12f, -1e-5f);
+	//std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f);
+	//std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RastriginFitness, true, 5, 5.12f, -1e-5f);
 	//std::vector<GeneticAlgorithm<bool>> standard_gas = MakeBinaryGas(OneMaxFitness, false, 80, 0);
 	//std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeBinaryGas(OneMaxFitness, true, 80, 0);
 
@@ -650,13 +650,14 @@ int main(int argc, char **argv)
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
 	
-	GeneticAlgorithm<float> ga = MakeSphere20(true);
-	ga.target_fitness_ = -1e-5;
-	ga.max_fitness_evaluations_ = 200000;
+	GeneticAlgorithm<bool> ga = MakeOneMax80(true);
+	ga.target_fitness_ = 0;
+	ga.max_fitness_evaluations_ = 100000;
 	
 	//RunPopulationTest(MakeGriewank5(100000, false), 100000, TrackingType::Both, 2000, directory, true);
-	
-	RunSuccessRateTest(ga, 100000, 500, directory, true);
+	//float f = TestSuite<float>::RunBaseTest(ga, 1500);
+	//std::cout << "\n" << std::to_string(f) << "\n";
+	RunSuccessRateTest(ga, 100000, 100, directory, true);
 
 	system("PAUSE");
 	return 0;

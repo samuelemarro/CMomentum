@@ -31,7 +31,7 @@ private:
 		}
 
 		if (vector.size() % 2 == 0) {
-			median = (vector[(vector.size() - 1) / 2] + vector[(vector.size() - 1) / 2 + 1]) / 2;
+			median = (vector[vector.size() / 2 - 1] + vector[vector.size() / 2]) / 2;
 		}
 		else {
 			median = vector[(vector.size() - 1) / 2];

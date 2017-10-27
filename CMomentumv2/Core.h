@@ -99,7 +99,6 @@ public:
 		int fitness_evaluations = 0;
 		float best_fitness = INT32_MIN;
 
-		std::vector<float> current_cluster = std::vector<float>();
 		tracked_fitness_values = std::vector<std::vector<float>>();
 
 		//Create the initial population
@@ -125,8 +124,8 @@ public:
 		});
 
 		while ((best_fitness < target_fitness_ || target_fitness_ == INT32_MAX) &&
-			(fitness_evaluations < max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
-			(generation < max_generation_ || max_generation_ == -1)) {
+			(fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
+			(generation <= max_generation_ || max_generation_ == -1)) {
 
 			std::vector<std::unique_ptr<Chromosome<T>>> offspring = std::vector<std::unique_ptr<Chromosome<T>>>();
 			offspring.reserve(population_size_);
