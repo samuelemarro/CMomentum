@@ -295,6 +295,10 @@ public:
 		//tournament.resize requires an object to use in case the vector's size is increased (which is not going to happen)
 		TestSuite::PartialTestResult<T> empty_test = PartialTestResult<T>(PartialTestResult<T>(gas[0], 0));
 
+		if (tournament_size == 1) {
+			return gas[0];
+		}
+
 		while (tournament_size > 1) {
 			std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
 

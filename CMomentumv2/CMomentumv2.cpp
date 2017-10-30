@@ -132,24 +132,27 @@ void BinaryRecombination(Chromosome<bool>& current, const Parent<bool>& parent, 
 
 void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
 	if (recombination_rate != 0) {
-		std::vector<int> diff = ComputeDiff(current, parent);
-
-		if (diff.size() == 0) {
-			return;
-		}
-
 		float range_min = additional_parameters["range_min"];
 		float range_max = additional_parameters["range_max"];
 		float mutation_size = additional_parameters["relative_mutation_size"] * (range_max - range_min);
-		int recombinations = FastRand::PolinomialInt(recombination_rate, diff.size());
 
-		for (int i = 0; i < recombinations; i++) {
-			int random_index = FastRand::RandomInt(diff.size());
-			int diff_index = diff[random_index];
-			float added_value = FastRand::RandomFloat(-mutation_size, +mutation_size);
-			current.genes_[diff_index] = std::min(std::max(current.genes_[i] + added_value, range_min), range_max);
+		float diff_sum = 0;
+		int diff_count = 0;
+		std::vector<float> diff = std::vector<float>();
+		for (int i = 0; i < current.genes_.size(); i++) {
+			float diff_element = std::abs(current.genes_[i] - parent.genes_[i]);
+			diff.push_back(diff_element);
+			diff_sum += diff_element;
+			if (diff_element != 0) {
+				diff_count++;
+			}
+		}
 
-			diff.erase(diff.begin() + random_index);
+		for (int i = 0; i < current.genes_.size(); i++) {
+			if (diff[i] != 0 && FastRand::RandomFloat() < recombination_rate * diff_count * diff[i] / diff_sum) {
+				float added_value = FastRand::RandomFloat(-mutation_size, +mutation_size);
+				current.genes_[i] = std::min(std::max(current.genes_[i] + added_value, range_min), range_max);
+			}
 		}
 	}
 }
@@ -595,7 +598,63 @@ GeneticAlgorithm<float> MakeRastrigin5(bool optimised) {
 
 	return ga;
 }
+/*
+GeneticAlgorithm<float> MakeAlternativeRastrigin5() {
+	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
+		UniformInitialization,
+		TournamentSelection<float>,
+		IntermediateCrossover,
+		RealValuedMutation,
+		AlternativeRealValuedRecombination,
+		RastriginFitness);
 
+	ga.chromosome_length_ = 5;
+
+	ga.population_size_ = 100;
+	ga.mutation_probability_ = 0.05f;
+	ga.crossover_probability_ = 0.6f;
+	ga.elitism_rate_ = 0.05f;
+	ga.recombination_rate_ = 0.3f;
+
+	ga.additional_parameters_["range_min"] = -5.12f;
+	ga.additional_parameters_["range_max"] = 5.12f;
+
+	ga.additional_parameters_["tournament_size"] = 5;
+	ga.additional_parameters_["gene_mutation_rate"] = 0.1f;
+	ga.additional_parameters_["relative_mutation_size"] = 0.2f;
+	ga.additional_parameters_["crossover_ratio"] = 0;
+
+	return ga;
+}
+
+GeneticAlgorithm<float> MakeAlternative2Rastrigin5() {
+	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
+		UniformInitialization,
+		TournamentSelection<float>,
+		IntermediateCrossover,
+		RealValuedMutation,
+		AlternativeRealValuedRecombination,
+		RastriginFitness);
+
+	ga.chromosome_length_ = 5;
+
+	ga.population_size_ = 100;
+	ga.mutation_probability_ = 0.15f;
+	ga.crossover_probability_ = 0.8f;
+	ga.elitism_rate_ = 0.05f;
+	ga.recombination_rate_ = 0.1f;
+
+	ga.additional_parameters_["range_min"] = -5.12f;
+	ga.additional_parameters_["range_max"] = 5.12f;
+
+	ga.additional_parameters_["tournament_size"] = 2;
+	ga.additional_parameters_["gene_mutation_rate"] = 0.15f;
+	ga.additional_parameters_["relative_mutation_size"] = 0.1f;
+	ga.additional_parameters_["crossover_ratio"] = 0.25f;
+
+	return ga;
+}
+*/
 GeneticAlgorithm<float> MakeGriewank5(bool optimised) {
 	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
 		UniformInitialization,
@@ -637,7 +696,8 @@ int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
 
-	//std::vector<GeneticAlgorithm<float>> standard_gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f);
+	//std::vector<GeneticAlgorithm<float>> _standard_gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f);
+	//std::vector<GeneticAlgorithm<float>> standard_gas = { _standard_gas[0] };
 	//std::vector<GeneticAlgorithm<float>> optimised_gas = MakeRealValuedGas(RastriginFitness, true, 5, 5.12f, -1e-5f);
 	//std::vector<GeneticAlgorithm<bool>> standard_gas = MakeBinaryGas(OneMaxFitness, false, 80, 0);
 	//std::vector<GeneticAlgorithm<bool>> optimised_gas = MakeBinaryGas(OneMaxFitness, true, 80, 0);
@@ -650,13 +710,23 @@ int main(int argc, char **argv)
 
 	//RunCompleteTest(standard_gas, optimised_gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, directory);
 	
-	GeneticAlgorithm<bool> ga = MakeOneMax80(true);
-	ga.target_fitness_ = 0;
+	GeneticAlgorithm<float> ga = MakeRastrigin5(true);
+	ga.target_fitness_ = -1e-5;
 	ga.max_fitness_evaluations_ = 100000;
 	
 	//RunPopulationTest(MakeGriewank5(100000, false), 100000, TrackingType::Both, 2000, directory, true);
 	//float f = TestSuite<float>::RunBaseTest(ga, 1500);
 	//std::cout << "\n" << std::to_string(f) << "\n";
+
+	//Ripulire il codice
+	//Aggiungere calcolo diretto di media e mediana
+	//Test separabili
+	//La test size dei preliminari basta 1k
+	//Stopping criteria
+	//Sistema salvataggio
+	//Automatizzare
+	//Pausa
+
 	RunSuccessRateTest(ga, 100000, 100, directory, true);
 
 	system("PAUSE");
