@@ -9,6 +9,7 @@
 #include <numeric>
 #include <type_traits>
 #include <omp.h>
+#include <limits>
 
 static class MathUtility {
 	template<typename T>
@@ -31,7 +32,7 @@ private:
 		}
 
 		if (vector.size() % 2 == 0) {
-			median = (vector[vector.size() / 2 - 1] + vector[vector.size() / 2]) / 2;
+			median = (float)(vector[vector.size() / 2 - 1] + vector[vector.size() / 2]) / 2;
 		}
 		else {
 			median = vector[(vector.size() - 1) / 2];
@@ -40,7 +41,7 @@ private:
 		return median;
 	}
 	static float StandardDeviation(std::vector<float> data) {
-		return StandardDeviation(data, std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size()));
+		return StandardDeviation(data, std::accumulate(data.begin(), data.end(), 0.0f) / static_cast<float>(data.size()));
 	}
 	static float StandardDeviation(std::vector<float> data, float average) {
 		float sum = 0;
@@ -53,13 +54,13 @@ private:
 
 struct DataPoint {
 public:
-	float min;
-	float max;
-	float average;
-	float standard_deviation;
-	float median;
-	float q1;
-	float q3;
+	float min = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float max = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float average = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float standard_deviation = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float median = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float q1 = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
+	float q3 = std::numeric_limits<float>::has_signaling_NaN ? std::numeric_limits<float>::signaling_NaN() : FLT_MAX;
 
 	DataPoint() {
 
@@ -68,8 +69,8 @@ public:
 
 	}
 	DataPoint(std::vector<float> data, bool is_sorted) {
-		if (data.size() < 2) {
-			throw std::invalid_argument("The size of data must be at least 2.");
+		if (data.size() < 1) {
+			throw std::invalid_argument("The size of data must be at least 1.");
 		}
 
 		min = *std::min_element(data.begin(), data.end());
@@ -77,20 +78,43 @@ public:
 		if (!is_sorted) {
 			std::sort(data.begin(), data.end());
 		}
-		average = std::accumulate(data.begin(), data.end(), 0) / static_cast<float>(data.size());
+		average = std::accumulate(data.begin(), data.end(), 0.0f) / static_cast<float>(data.size());
 		standard_deviation = MathUtility::StandardDeviation(data, average);
 		median = MathUtility::Median(data, true);
 
-		//Remove the middle element to split correctly data in two parts
-		if (data.size() % 2 != 0 && data.size() > 1) {
-			int middle_position = (data.size() + 1) / 2;
-			data.erase(data.begin() + middle_position);
+		if (data.size() == 1) {
+			q1 = median;
+			q3 = median;
 		}
-		int half_size = data.size() / 2;
+		else {
+			//Remove the middle element to split correctly data in two parts
+			if (data.size() % 2 != 0) {
+				int middle_position = (data.size() + 1) / 2;
+				data.erase(data.begin() + middle_position);
+			}
+			int half_size = data.size() / 2;
 
-		q1 = MathUtility::Median(std::vector<float>(data.begin(), data.begin() + half_size), true);
-		q3 = MathUtility::Median(std::vector<float>(data.begin() + half_size, data.end()), true);
+			std::vector<float> first_half = std::vector<float>(data.begin(), data.begin() + half_size);
+			std::vector<float> second_half = std::vector<float>(data.begin() + half_size, data.end());
+
+			q1 = MathUtility::Median(first_half, true);
+			q3 = MathUtility::Median(second_half, true);
+		}
 	}
+
+	std::string ToString() {
+		std::string result = "";
+		result += "Min: " + std::to_string(min) + "\n";
+		result += "Max: " + std::to_string(max) + "\n";
+		result += "Average: " + std::to_string(average) + "\n";
+		result += "Standard Deviation: " + std::to_string(standard_deviation) + "\n";
+		result += "Q1: " + std::to_string(q1) + "\n";
+		result += "Median (Q2): " + std::to_string(median) + "\n";
+		result += "Q3: " + std::to_string(q3) + "\n";
+
+		return result;
+	}
+
 };
 
 enum TrackingType {
@@ -134,7 +158,8 @@ public:
 				FastRand::Seed(seed_generator());
 				int ga_index = i % gas_size;
 				GeneticAlgorithm<T> ga = gas[ga_index];
-				float evaluation = ga.RunAlgorithm(false, false, 0);
+				std::pair<bool, int> ga_result = ga.RunAlgorithm();
+				int evaluation = ga_result.first ? ga_result.second : INT32_MAX;
 #pragma omp critical
 				{
 					results[ga_index].evaluations_.push_back(evaluation);
@@ -156,8 +181,8 @@ public:
 
 		return results;
 	}
-	static std::vector<int> EvaluationsTest(GeneticAlgorithm<T> base_ga, int test_size) {
-		std::vector<int> evaluations = std::vector<int>();
+	static std::vector<std::pair<bool, int>> EvaluationsTest(GeneticAlgorithm<T> base_ga, int test_size) {
+		std::vector<std::pair<bool, int>> results = std::vector<std::pair<bool, int>>();
 		int executed_tests = 0;
 		std::random_device seed_generator;
 #pragma omp parallel
@@ -166,10 +191,10 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				float evaluation = ga.RunAlgorithm(false, false, 0);
+				std::pair<bool, int> pair = ga.RunAlgorithm();
 #pragma omp critical
 				{
-					evaluations.push_back(evaluation);
+					results.push_back(pair);
 				}
 
 				executed_tests++;
@@ -180,111 +205,62 @@ public:
 		}
 
 		std::cout << "\n";
-		return evaluations;
-	}
-	static float RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
-		std::vector<int> evaluations = EvaluationsTest(base_ga, test_size);
-		return MathUtility::Median(evaluations);
+		return results;
 	}
 
-	static std::vector<float> SuccessRatesTest(GeneticAlgorithm<T> base_ga, int test_size, int section_size) {
-		std::vector<int> evaluations = EvaluationsTest(base_ga, test_size);
-		std::vector<int> successful_tests = std::vector<int>();
-		std::sort(evaluations.begin(), evaluations.end());
-		int current_section = 0;
-		for(int evaluation : evaluations) {
-			int floored = evaluation - (evaluation % section_size);
-			int index = floored / section_size;
-			if (successful_tests.size() < index + 1) {
-				successful_tests.resize(index + 1);
+	//Returns a pair with 1. The success rate 2. The median number of evaluations.
+	static std::pair<float, float> RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
+		std::vector<std::pair<bool, int>> result = EvaluationsTest(base_ga, test_size);
+		std::vector<int> evaluations = std::vector<int>();
+
+		int total_successes = 0;
+
+		for (std::pair<bool, int> pair : result) {
+			if (pair.first) {
+				total_successes++;
 			}
-			successful_tests[index]++;
+			evaluations.push_back(pair.second);
+		}
+		return std::make_pair(MathUtility::Median(evaluations),//Median evaluations
+			(float)total_successes / result.size());//Success rate
+	}
+
+	static std::pair<DataPoint, std::vector<float>> SuccessRatesTest(GeneticAlgorithm<T> base_ga, int test_size, int section_size) {
+		std::vector<std::pair<bool, int>> results = EvaluationsTest(base_ga, test_size);
+		std::vector<int> sections = std::vector<int>();
+
+		std::vector<float> evaluations = std::vector<float>();
+
+		std::sort(results.begin(), results.end(), [](auto &left, auto &right) {
+			return left.second < right.second;
+		});
+
+		for (std::pair<bool, int> pair : results) {
+			if (pair.first) {
+				int floored = pair.second - (pair.second % section_size);
+				int index = floored / section_size;
+				if (sections.size() < index + 1) {
+					sections.resize(index + 1);
+				}
+				sections[index]++;
+
+				evaluations.push_back(pair.second);
+			}
 		}
 
 		std::vector<float> success_rates = std::vector<float>();
 
 		//Compute the success rate
-		success_rates.push_back(static_cast<float>(successful_tests[0]) / evaluations.size());
-		for (int i = 1; i < successful_tests.size(); i++) {
-			success_rates.push_back(static_cast<float>(successful_tests[i]) / evaluations.size());
+		for (int i = 0; i < sections.size(); i++) {
+			success_rates.push_back(static_cast<float>(sections[i]) / results.size());
 		}
 
-		return success_rates;
+		DataPoint datapoint = evaluations.size() > 0 ? DataPoint(evaluations, true) : DataPoint();
+
+		return std::make_pair(datapoint,//Datapoint of the successful executions
+			success_rates);//Distribution of executions (sum = success rate)
 	}
 
-	static std::pair<std::vector<DataPoint>, std::vector<DataPoint>> RunPopulationTest(GeneticAlgorithm<T> base_ga, int test_size, TrackingType tracking_type, int snapshot_period) {
-
-		if (base_ga.target_fitness_ != FLT_MAX || base_ga.max_generation_ != -1) {
-			std::cout << "WARNING: This type of test is designed for GAs that are executed until they reach a certain evaluation number." << std::endl;
-			std::cout << "Using other types of termination might lead to unexpected results, for example the best fitness worsening after reaching the termination." << std::endl;
-			std::cout << "This is caused by the fact that GAs that have reached the termination stop outputting further results." << std::endl;
-		}
-
-		bool track_fitness = tracking_type == TrackingType::Fitness || tracking_type == TrackingType::Both;
-		bool track_diversity = tracking_type == TrackingType::Diversity || tracking_type == TrackingType::Both;
-
-		//Fitness and diversity tracking. Each inner vector corresponds to a generation
-		std::vector<std::vector<float>> final_fitness_values = std::vector<std::vector<float>>();
-		std::vector<std::vector<float>> final_diversity_values = std::vector<std::vector<float>>();
-
-		int executed_tests = 0;
-		std::random_device seed_generator;
-#pragma omp parallel
-		{
-#pragma omp for
-			for (int i = 1; i <= test_size; i++) {
-				FastRand::Seed(seed_generator());
-				GeneticAlgorithm<T> ga = base_ga;
-				ga.RunAlgorithm(track_fitness, track_diversity, snapshot_period);
-
-#pragma omp critical
-				{
-					//If final_fitness_values has 500 generations and tracked_fitness_values has 1000, make room for more
-					if (track_fitness && final_fitness_values.size() < ga.tracked_fitness_values.size()) {
-						final_fitness_values.resize(ga.tracked_fitness_values.size(), std::vector<float>());
-					}
-					//Same goes for diversity
-					if (track_diversity && final_diversity_values.size() < ga.tracked_diversity_values.size()) {
-						final_diversity_values.resize(ga.tracked_diversity_values.size(), std::vector<float>());
-					}
-
-					//Add the fitness values of each generation to its corresponding slot
-					if (track_fitness) {
-						for (int i = 0; i < ga.tracked_fitness_values.size(); i++) {
-							final_fitness_values[i].insert(final_fitness_values[i].end(), ga.tracked_fitness_values[i].begin(), ga.tracked_fitness_values[i].end());
-						}
-					}
-					//Add the diversity value of each generation to its corresponding slot
-					if(track_diversity){
-						for (int i = 0; i < ga.tracked_diversity_values.size(); i++) {
-							final_diversity_values[i].push_back(ga.tracked_diversity_values[i]);
-						}
-					}
-				}
-
-				executed_tests++;
-				if (executed_tests % std::max(1, test_size / 100) == 0) {
-					EraseWriteLine("Progress: " + std::to_string(executed_tests * 100 / test_size) + "%");
-				}
-			}
-		}
-
-		std::vector<DataPoint> fitness_datapoints = std::vector<DataPoint>();
-		std::vector<DataPoint> diversity_datapoints = std::vector<DataPoint>();
-		if (track_fitness) {
-			for (int i = 0; i < final_fitness_values.size(); i++) {
-				fitness_datapoints.push_back(DataPoint(final_fitness_values[i]));
-			}
-		}
-
-		if (track_diversity) {
-			for (int i = 0; i < final_diversity_values.size(); i++) {
-				diversity_datapoints.push_back(DataPoint(final_diversity_values[i]));
-			}
-		}
-
-		return std::make_pair(fitness_datapoints, diversity_datapoints);
-	}
 	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
 
 		std::vector<TestSuite::PartialTestResult<T>> tournament = std::vector<TestSuite::PartialTestResult<T>>();
@@ -300,7 +276,7 @@ public:
 		}
 
 		while (tournament_size > 1) {
-			std::cout << "Running tournament n." << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
+			std::cout << "Running tournament n. " << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
 
 			tournament = RunParallelTests(gas, test_size);
 
@@ -327,6 +303,7 @@ public:
 		}
 		return tournament[0].ga_;
 	}
+
 	static void EraseWriteLine(std::string text) {
 		std::cout << text;
 		std::cout << std::string(text.length(), '\b');

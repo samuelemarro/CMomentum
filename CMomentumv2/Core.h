@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <limits>
 
 template<typename T>
 struct Parent {
@@ -62,10 +63,9 @@ public:
 
 	int max_fitness_evaluations_ = -1;
 	int max_generation_ = -1;
-	float target_fitness_ = FLT_MAX;
+	int max_stagnation_ = -1;
+	float target_fitness_ = std::numeric_limits<float>::is_iec559 ? std::numeric_limits<float>::infinity() : FLT_MAX;
 
-	std::vector<std::vector<float>> tracked_fitness_values;
-	std::vector<float> tracked_diversity_values;
 
 	GeneticAlgorithm(
 		std::function<Chromosome<T>(int, std::map<std::string, float>&)> initialization,
@@ -83,23 +83,19 @@ public:
 	{
 		CheckFunctions();
 	}
-	int RunAlgorithm() {
-		return RunAlgorithm(false, false, 0);
-	}
 
-	int RunAlgorithm(bool track_fitness, bool track_diversity, int snapshot_period) {
+	///<summary>
+	///Executes the algorithms.
+	///<returns> Returns a pair with 1. Whether the execution was successful 2. The amount of evaluations. </summary>
+	///</summary>
+	std::pair<bool, int> RunAlgorithm() {
 		CheckFunctions();
 		CheckParameters();
 
-		if ((track_fitness || track_diversity) && snapshot_period <= population_size_) {
-			throw std::invalid_argument("The parameter \"snapshot_period\" must be bigger than \"population_size\"");
-		}
-
 		int generation = 1;
 		int fitness_evaluations = 0;
-		float best_fitness = INT32_MIN;
-
-		tracked_fitness_values = std::vector<std::vector<float>>();
+		float best_fitness = std::numeric_limits<float>::is_iec559 ? -std::numeric_limits<double>::infinity() : -FLT_MAX;
+		int stagnation = 0;
 
 		//Create the initial population
 		std::vector<std::unique_ptr<Chromosome<T>>> population = std::vector<std::unique_ptr<Chromosome<T>>>();
@@ -114,18 +110,17 @@ public:
 
 		fitness_evaluations += population_size_;
 
-		//Store the initial population (evaluations=0, but technicaly we store it after evaluation)
-		StoreTracking(population, track_fitness, track_diversity);
-
 		//Sort the population by fitness in descending order
 		sort(population.begin(), population.end(),
 			[](const auto& lhs, const auto& rhs) {
 			return lhs->fitness_ > rhs->fitness_;
 		});
-
-		while ((best_fitness < target_fitness_ || target_fitness_ == INT32_MAX) &&
+		//While the stop criteria aren't true (ignoring unset criteria)
+		//Depending on the implementation, the default value of target_fitness_ is infinity (IEC559) or FLT_MAX (no IEC559)
+		while ((best_fitness < target_fitness_ || (target_fitness_ == FLT_MAX || std::isinf(target_fitness_))) &&
 			(fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
-			(generation <= max_generation_ || max_generation_ == -1)) {
+			(generation <= max_generation_ || max_generation_ == -1) &&
+			(stagnation <= max_stagnation_ || max_stagnation_ == -1)) {
 
 			std::vector<std::unique_ptr<Chromosome<T>>> offspring = std::vector<std::unique_ptr<Chromosome<T>>>();
 			offspring.reserve(population_size_);
@@ -162,8 +157,6 @@ public:
 				offspring.push_back(std::unique_ptr<Chromosome<T>>(child2));
 			}
 
-			bool take_snapshot = false;
-
 			for (auto& chromosome : offspring)
 			{
 				if (FastRand::RandomFloat() < mutation_probability_) {
@@ -195,13 +188,6 @@ public:
 					chromosome->fitness_is_valid_ = true;
 
 					fitness_evaluations++;
-
-					//If the evaluation count reaches the one required for a snapshot, mark it
-					//so that it will take a snapshot once the fitness values have been updated.
-					//The second condition is used to prevent taking snapshots after fitness_evaluations has reached the maximum.
-					if ((track_fitness || track_diversity) && fitness_evaluations % snapshot_period == 0 && (fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1)) {
-						take_snapshot = true;
-					}
 				}
 			}
 
@@ -213,34 +199,41 @@ public:
 
 			population = std::move(offspring);
 
-			//Store the fitness values of the snapshot
-			if (take_snapshot) {
-				StoreTracking(population, track_fitness, track_diversity);
-			}
-
 			//Sort the population by fitness in descending order
 			std::sort(population.begin(), population.end(),
 				[](const auto& lhs, const auto& rhs) {
 				return lhs->fitness_ > rhs->fitness_;
 			});
 
+			if (population[0]->fitness_ > best_fitness) {
+				stagnation = 0;
+			}
+			else {
+				stagnation++;
+			}
+
 			best_fitness = population[0]->fitness_;
 
 			generation++;
 		}
 
-		return fitness_evaluations;
+		return std::make_pair(best_fitness >= target_fitness_, fitness_evaluations);
 	}
 
 	std::string DumpParameters() {
 		std::string parameters = "";
 
-		parameters += std::string("Chromosome Length: ") + std::to_string(chromosome_length_) + std::string("\n");
-		parameters += std::string("Population Size: ") + std::to_string(population_size_) + std::string("\n");
-		parameters += std::string("Mutation Probability: ") + std::to_string(mutation_probability_) + std::string("\n");
-		parameters += std::string("Crossover Probability: ") + std::to_string(crossover_probability_) + std::string("\n");
-		parameters += std::string("Elitism Rate: ") + std::to_string(elitism_rate_) + std::string("\n");
-		parameters += std::string("Recombination Rate: ") + std::to_string(recombination_rate_) + std::string("\n");
+		parameters += "Chromosome Length: " + std::to_string(chromosome_length_) + "\n";
+		parameters += "Population Size: " + std::to_string(population_size_) + "\n";
+		parameters += "Mutation Probability: " + std::to_string(mutation_probability_) + "\n";
+		parameters += "Crossover Probability: " + std::to_string(crossover_probability_) + "\n";
+		parameters += "Elitism Rate: " + std::to_string(elitism_rate_) + "\n";
+		parameters += "Recombination Rate: " + std::to_string(recombination_rate_) + "\n";
+
+		parameters += "Max Fitness Evaluations: " + std::to_string(max_fitness_evaluations_) + "\n";
+		parameters += "Max Generation: " + std::to_string(max_generation_) + "\n";
+		parameters += "Max Stagnation: " + std::to_string(max_stagnation_) + "\n";
+		parameters += "Target Fitness: " + std::to_string(target_fitness_) + "\n";
 
 		if (additional_parameters_.size() != 0) {
 			parameters += "Additional Parameters:\n";
@@ -277,38 +270,8 @@ private:
 		if (population_size_ % 2 != 0 || population_size_ < 2) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
 		}
-		if (target_fitness_ == INT32_MAX && max_fitness_evaluations_ == -1 && max_generation_ == -1) {
+		if ((target_fitness_ == FLT_MAX || std::isinf(target_fitness_)) && max_fitness_evaluations_ == -1 && max_generation_ == -1 && max_stagnation_ == -1) {
 			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
-		}
-	}
-	void StoreTracking(std::vector<std::unique_ptr<Chromosome<T>>>& population, bool track_fitness, bool track_diversity) {
-		if (track_fitness) {
-			//Store the fitness values
-			std::vector<float> fitness_values = std::vector<float>();
-			for (auto& chromosome : population) {
-				fitness_values.push_back(chromosome->fitness_);
-			}
-			tracked_fitness_values.push_back(fitness_values);
-		}
-		if (track_diversity) {
-			//Compute the Moment-Of-Inertia Diversity Measure (Measurement of Population Diversity, 2001, Morrison and DeJong)
-			std::vector<float> centroid = std::vector<float>();
-			for (int i = 0; i < chromosome_length_; i++) {
-				float coordinate = 0;
-				for (int j = 0; j < population_size_; j++) {
-					coordinate += population[j]->genes_[i];
-				}
-				centroid.push_back(coordinate / population_size_);
-			}
-
-			float moment_of_inertia = 0;
-			for (int i = 0; i < chromosome_length_; i++) {
-				for (int j = 0; j < population_size_; j++) {
-					moment_of_inertia += (population[j]->genes_[i] - centroid[i]) * (population[j]->genes_[i] - centroid[i]);
-				}
-			}
-
-			tracked_diversity_values.push_back(moment_of_inertia);
 		}
 	}
 };
