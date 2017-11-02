@@ -64,7 +64,7 @@ public:
 	int max_fitness_evaluations_ = -1;
 	int max_generation_ = -1;
 	int max_stagnation_ = -1;
-	float target_fitness_ = std::numeric_limits<float>::is_iec559 ? std::numeric_limits<float>::infinity() : FLT_MAX;
+	float target_fitness_ = FLT_MAX;
 
 
 	GeneticAlgorithm(
@@ -94,7 +94,7 @@ public:
 
 		int generation = 1;
 		int fitness_evaluations = 0;
-		float best_fitness = std::numeric_limits<float>::is_iec559 ? -std::numeric_limits<double>::infinity() : -FLT_MAX;
+		float best_fitness = -FLT_MAX;
 		int stagnation = 0;
 
 		//Create the initial population
@@ -116,8 +116,7 @@ public:
 			return lhs->fitness_ > rhs->fitness_;
 		});
 		//While the stop criteria aren't true (ignoring unset criteria)
-		//Depending on the implementation, the default value of target_fitness_ is infinity (IEC559) or FLT_MAX (no IEC559)
-		while ((best_fitness < target_fitness_ || (target_fitness_ == FLT_MAX || std::isinf(target_fitness_))) &&
+		while ((best_fitness < target_fitness_ || target_fitness_ == FLT_MAX) &&
 			(fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
 			(generation <= max_generation_ || max_generation_ == -1) &&
 			(stagnation <= max_stagnation_ || max_stagnation_ == -1)) {
@@ -217,7 +216,12 @@ public:
 			generation++;
 		}
 
-		return std::make_pair(best_fitness >= target_fitness_, fitness_evaluations);
+		bool successful = (best_fitness >= target_fitness_ || target_fitness_ == FLT_MAX) &&
+			(fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
+			(generation <= max_generation_ || max_generation_ == -1) &&
+			(stagnation <= max_stagnation_ || max_stagnation_ == -1);
+
+		return std::make_pair(successful, fitness_evaluations);
 	}
 
 	std::string DumpParameters() {
@@ -268,10 +272,10 @@ private:
 	}
 	void CheckParameters() {
 		if (population_size_ % 2 != 0 || population_size_ < 2) {
-			throw std::invalid_argument("The parameter \"population_size_\" must be even number bigger or equal to 2.");
+			throw std::invalid_argument("The parameter \"population_size_\" must be an even number bigger or equal to 2.");
 		}
-		if ((target_fitness_ == FLT_MAX || std::isinf(target_fitness_)) && max_fitness_evaluations_ == -1 && max_generation_ == -1 && max_stagnation_ == -1) {
-			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\".");
+		if (target_fitness_ == FLT_MAX && max_fitness_evaluations_ == -1 && max_generation_ == -1 && max_stagnation_ == -1) {
+			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\", \"max_stagnation_\".");
 		}
 	}
 };

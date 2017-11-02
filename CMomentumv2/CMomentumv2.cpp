@@ -411,14 +411,32 @@ std::string FloatFormat(float x, const int decimal_digits) {
 	ss << std::fixed;
 	ss.precision(decimal_digits);
 	ss << x;
-	return ss.str();
+	std::string str = ss.str();
+	str.erase(str.find_last_not_of('0') + 1, std::string::npos);
+	if (str[str.size() - 1] == '.') {
+		str.pop_back();
+	}
+	return str;
 }
 
 std::string ScientificNotation(float x, const int decimal_digits) {
 	std::stringstream ss;
 	ss.precision(decimal_digits);
 	ss << std::scientific << x;
-	return ss.str();
+	std::string str = ss.str();
+
+	std::string mantissa = str.substr(0, str.find('e'));
+	std::string exponent = str.substr(str.find('e') + 1);
+
+	mantissa.erase(mantissa.find_last_not_of('0') + 1, std::string::npos);
+	if (mantissa[mantissa.size() - 1] == '.') {
+		mantissa.pop_back();
+	}
+
+	exponent.erase(exponent.find('0'), exponent.find_last_not_of('0') - 1);
+
+	//str.erase(str.find_last_not_of('0'), str.find_first_of('e'));
+	return mantissa + "e" + exponent;
 }
 
 template<typename T>
@@ -434,11 +452,11 @@ void RunCompleteTest(std::string name, std::vector<GeneticAlgorithm<T>> gas, int
 
 	std::string file_name = name + " " + std::to_string(best.chromosome_length_);
 	if (best.additional_parameters_.find("range_max") != best.additional_parameters_.end()) {
-		file_name += " " + std::to_string(best.additional_parameters_["range_max"]);
+		file_name += " " + FloatFormat(best.additional_parameters_["range_max"], 2);
 	}
 
 	if (best.target_fitness_ != 0) {
-		file_name += ScientificNotation(best.target_fitness_, 2);
+		file_name += " " + ScientificNotation(best.target_fitness_, 2);
 	}
 
 	file_name += std::string(" ") + (best.recombination_rate_ == 0 ? "Standard" : "Optimised");
@@ -486,11 +504,6 @@ struct ParameterSet {
 	std::map<std::string, std::vector<float>> additional_parameters;
 };
 
-template<typename T>
-bool future_is_ready(std::future<T>& t) {
-	return t.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-}
-
 
 int main(int argc, char **argv)
 {
@@ -504,9 +517,10 @@ int main(int argc, char **argv)
 	float test_size_increase_rate = 1;
 	float elimination_rate = 0.9f;
 
-	int final_test_size = 100000;
+	int final_test_size = 10;
 
-	std::vector<GeneticAlgorithm<float>> gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, 250);
+	std::vector<GeneticAlgorithm<float>> _gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, 250);
+	std::vector<GeneticAlgorithm<float>> gas = { _gas[2324] };
 	RunCompleteTest("Rastrigin", gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, 100, directory);
 	
 	return 0;
