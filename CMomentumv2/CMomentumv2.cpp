@@ -263,14 +263,14 @@ std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome
 
 	std::vector<int> population_sizes = { 100, 200 };
 	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
+	std::vector<float> crossover_probabilities = { 0.6f, 0.7f, 0.8f };
 	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
 
 	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
 	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
 	std::vector<float> recombination_rates;
 	if (optimised) {
-		recombination_rates = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f };
+		recombination_rates = { 0.1f, 0.2f, 0.3f};
 	}
 	else {
 		recombination_rates = { 0 };
@@ -327,7 +327,7 @@ std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chrom
 
 	std::vector<int> population_sizes = { 100, 200 };
 	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
+	std::vector<float> crossover_probabilities = { 0.6f, 0.7f, 0.8f };
 	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
 
 	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
@@ -338,7 +338,7 @@ std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chrom
 
 	std::vector<float> recombination_rates;
 	if (optimised) {
-		recombination_rates = { 0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.3f/*, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1*/ };
+		recombination_rates = { 0.1f, 0.2f, 0.3f};
 	}
 	else {
 		recombination_rates = { 0 };
@@ -517,10 +517,9 @@ int main(int argc, char **argv)
 	float test_size_increase_rate = 1;
 	float elimination_rate = 0.9f;
 
-	int final_test_size = 10;
+	int final_test_size = 100000;
 
-	std::vector<GeneticAlgorithm<float>> _gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, 250);
-	std::vector<GeneticAlgorithm<float>> gas = { _gas[2324] };
+	std::vector<GeneticAlgorithm<float>> gas = MakeRealValuedGas(RastriginFitness, true, 5, 5.12f, -1e-5f, 100000, 2500);
 	RunCompleteTest("Rastrigin", gas, base_test_size, test_size_increase_rate, elimination_rate, final_test_size, 100, directory);
 	
 	return 0;

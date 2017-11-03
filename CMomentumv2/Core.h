@@ -95,6 +95,7 @@ public:
 		int generation = 1;
 		int fitness_evaluations = 0;
 		float best_fitness = -FLT_MAX;
+		int last_fitness_evaluations = 0;
 		int stagnation = 0;
 
 		//Create the initial population
@@ -208,8 +209,10 @@ public:
 				stagnation = 0;
 			}
 			else {
-				stagnation++;
+				stagnation += fitness_evaluations - last_fitness_evaluations;
 			}
+
+			last_fitness_evaluations = fitness_evaluations;
 
 			best_fitness = population[0]->fitness_;
 
