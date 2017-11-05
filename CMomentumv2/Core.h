@@ -118,9 +118,9 @@ public:
 		});
 		//While the stop criteria aren't true (ignoring unset criteria)
 		while ((best_fitness < target_fitness_ || target_fitness_ == FLT_MAX) &&
-			(fitness_evaluations <= max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
-			(generation <= max_generation_ || max_generation_ == -1) &&
-			(stagnation <= max_stagnation_ || max_stagnation_ == -1)) {
+			(fitness_evaluations < max_fitness_evaluations_ || max_fitness_evaluations_ == -1) &&
+			(generation < max_generation_ || max_generation_ == -1) &&
+			(stagnation < max_stagnation_ || max_stagnation_ == -1)) {
 
 			std::vector<std::unique_ptr<Chromosome<T>>> offspring = std::vector<std::unique_ptr<Chromosome<T>>>();
 			offspring.reserve(population_size_);
