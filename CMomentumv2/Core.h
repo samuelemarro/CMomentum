@@ -53,7 +53,7 @@ public:
 	float elitism_rate_ = 0.1f;
 	float recombination_rate_ = 0.2f;
 	std::map<std::string, float> additional_parameters_ = std::map<std::string, float>();
-	float max_fitness_evaluations_ = -1;
+	int max_fitness_evaluations_ = -1;
 	float max_generation_ = -1;
 	float max_stagnation_ = -1;
 	float target_fitness_ = FLT_MAX;
@@ -96,7 +96,7 @@ public:
 	std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination_ = nullptr;
 	std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function_ = nullptr;
 
-	GeneticAlgorithmParameters parameters;
+	GeneticAlgorithmParameters parameters_;
 
 
 	GeneticAlgorithm(
@@ -107,7 +107,7 @@ public:
 		std::function<void(Chromosome<T>&, std::map<std::string, float>&)> mutation,
 		std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination,
 		std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function)
-		: parameters(parameters),
+		: parameters_(parameters),
 		initialization_(initialization),
 		selection_(selection),
 		crossover_(crossover),
@@ -122,7 +122,7 @@ public:
 	///Executes the algorithms.
 	///<returns> Returns a pair with 1. Whether the execution was successful 2. The amount of evaluations. </summary>
 	///</summary>
-	std::pair<bool, int> RunAlgorithm() {
+	std::vector<std::pair<int,float>> RunAlgorithm() {
 		CheckFunctions();
 		CheckParameters();
 
@@ -132,49 +132,54 @@ public:
 		int last_fitness_evaluations = 0;
 		int stagnation = 0;
 
+		std::vector<std::pair<int, float>> stored_best_fitness_values = std::vector<std::pair<int, float>>();
+
 		//Create the initial population
 		std::vector<std::unique_ptr<Chromosome<T>>> population = std::vector<std::unique_ptr<Chromosome<T>>>();
-		population.reserve(parameters.population_size_);
+		population.reserve(parameters_.population_size_);
 
-		for (int i = 0; i < parameters.population_size_; i++) {
-			Chromosome<T>* chromosome = new Chromosome<T>(initialization_(parameters.chromosome_length_, parameters.additional_parameters_));
-			chromosome->fitness_ = fitness_function_((*chromosome), parameters.additional_parameters_);
+		for (int i = 0; i < parameters_.population_size_; i++) {
+			Chromosome<T>* chromosome = new Chromosome<T>(initialization_(parameters_.chromosome_length_, parameters_.additional_parameters_));
+			chromosome->fitness_ = fitness_function_((*chromosome), parameters_.additional_parameters_);
 			chromosome->fitness_is_valid_ = true;
 			population.push_back(std::unique_ptr<Chromosome<T>>(chromosome));
 		}
 
-		fitness_evaluations += parameters.population_size_;
+		fitness_evaluations += parameters_.population_size_;
 
 		//Sort the population by fitness in descending order
 		sort(population.begin(), population.end(),
 			[](const auto& lhs, const auto& rhs) {
 			return lhs->fitness_ > rhs->fitness_;
 		});
-		//While the stop criteria aren't true (ignoring unset criteria)
-		while ((best_fitness < parameters.target_fitness_ || parameters.target_fitness_ == FLT_MAX) &&
-			(fitness_evaluations < parameters.max_fitness_evaluations_ || parameters.max_fitness_evaluations_ == -1) &&
-			(generation < parameters.max_generation_ || parameters.max_generation_ == -1) &&
-			(stagnation < parameters.max_stagnation_ || parameters.max_stagnation_ == -1)) {
+
+		stored_best_fitness_values.push_back(std::make_pair(fitness_evaluations, population[0]->fitness_));
+
+		//While the stop criteria aren't satisfied (ignoring unset criteria)
+		while ((best_fitness < parameters_.target_fitness_ || parameters_.target_fitness_ == FLT_MAX) &&
+			(fitness_evaluations < parameters_.max_fitness_evaluations_ || parameters_.max_fitness_evaluations_ == -1) &&
+			(generation < parameters_.max_generation_ || parameters_.max_generation_ == -1) &&
+			(stagnation < parameters_.max_stagnation_ || parameters_.max_stagnation_ == -1)) {
 
 			std::vector<std::unique_ptr<Chromosome<T>>> offspring = std::vector<std::unique_ptr<Chromosome<T>>>();
-			offspring.reserve(parameters.population_size_);
+			offspring.reserve(parameters_.population_size_);
 
 			//Compute the elitism size (flooring to multiples of two) 
-			int elitism_size = parameters.population_size_ * parameters.elitism_rate_;
+			int elitism_size = parameters_.population_size_ * parameters_.elitism_rate_;
 
 			if (elitism_size % 2 == 1) {
 				elitism_size--;
 			}
 
-			for (int i = 0; i < parameters.population_size_ - elitism_size; i += 2) {
-				std::pair<Chromosome<T>*, Chromosome<T>*> parents = selection_(population, parameters.additional_parameters_);
+			for (int i = 0; i < parameters_.population_size_ - elitism_size; i += 2) {
+				std::pair<Chromosome<T>*, Chromosome<T>*> parents = selection_(population, parameters_.additional_parameters_);
 
 				//Copy the parents
 				Chromosome<T>* child1 = new Chromosome<T>(*parents.first);
 				Chromosome<T>* child2 = new Chromosome<T>(*parents.second);
 
-				if (FastRand::RandomFloat() < parameters.crossover_probability_) {
-					crossover_(*child1, *child2, parameters.additional_parameters_);
+				if (FastRand::RandomFloat() < parameters_.crossover_probability_) {
+					crossover_(*child1, *child2, parameters_.additional_parameters_);
 
 					child1->parent1_ = Parent<T>(parents.first->genes_, parents.first->fitness_);
 					child1->parent2_ = Parent<T>(parents.second->genes_, parents.second->fitness_);
@@ -193,8 +198,8 @@ public:
 
 			for (auto& chromosome : offspring)
 			{
-				if (FastRand::RandomFloat() < parameters.mutation_probability_) {
-					mutation_(*chromosome, parameters.additional_parameters_);
+				if (FastRand::RandomFloat() < parameters_.mutation_probability_) {
+					mutation_(*chromosome, parameters_.additional_parameters_);
 					chromosome->fitness_is_valid_ = false;
 				}
 
@@ -203,22 +208,22 @@ public:
 					if (chromosome->fitness_ < chromosome->parent1_.fitness_ && chromosome->fitness_ < chromosome->parent2_.fitness_)
 					{
 						if (FastRand::RandomInt(2) == 0) {
-							recombination_(*chromosome, chromosome->parent1_, parameters.recombination_rate_, parameters.additional_parameters_);
+							recombination_(*chromosome, chromosome->parent1_, parameters_.recombination_rate_, parameters_.additional_parameters_);
 						}
 						else {
-							recombination_(*chromosome, chromosome->parent2_, parameters.recombination_rate_, parameters.additional_parameters_);
+							recombination_(*chromosome, chromosome->parent2_, parameters_.recombination_rate_, parameters_.additional_parameters_);
 						}
 					}
 					else if (chromosome->fitness_ < chromosome->parent1_.fitness_) {
-						recombination_(*chromosome, chromosome->parent1_, parameters.recombination_rate_, parameters.additional_parameters_);
+						recombination_(*chromosome, chromosome->parent1_, parameters_.recombination_rate_, parameters_.additional_parameters_);
 					}
 					else if (chromosome->fitness_ < chromosome->parent2_.fitness_) {
-						recombination_(*chromosome, chromosome->parent2_, parameters.recombination_rate_, parameters.additional_parameters_);
+						recombination_(*chromosome, chromosome->parent2_, parameters_.recombination_rate_, parameters_.additional_parameters_);
 					}
 				}
 
 				if (!chromosome->fitness_is_valid_) {
-					chromosome->fitness_ = fitness_function_(*chromosome, parameters.additional_parameters_);
+					chromosome->fitness_ = fitness_function_(*chromosome, parameters_.additional_parameters_);
 					chromosome->fitness_is_valid_ = true;
 
 					fitness_evaluations++;
@@ -250,15 +255,12 @@ public:
 
 			best_fitness = population[0]->fitness_;
 
+			stored_best_fitness_values.push_back(std::make_pair(fitness_evaluations, best_fitness));
+
 			generation++;
 		}
 
-		bool successful = (best_fitness >= parameters.target_fitness_ || parameters.target_fitness_ == FLT_MAX) &&
-			(fitness_evaluations <= parameters.max_fitness_evaluations_ || parameters.max_fitness_evaluations_ == -1) &&
-			(generation <= parameters.max_generation_ || parameters.max_generation_ == -1) &&
-			(stagnation <= parameters.max_stagnation_ || parameters.max_stagnation_ == -1);
-
-		return std::make_pair(successful, fitness_evaluations);
+		return stored_best_fitness_values;
 	}
 private:
 	void CheckFunctions() {
@@ -268,13 +270,13 @@ private:
 		if (selection_ == NULL) {
 			throw std::invalid_argument("The parameter \"selection\" must be defined.");
 		}
-		if (crossover_ == NULL && parameters.crossover_probability_ != 0) {
+		if (crossover_ == NULL && parameters_.crossover_probability_ != 0) {
 			throw std::invalid_argument("The parameter \"crossover\" must be defined.");
 		}
-		if (mutation_ == NULL && parameters.mutation_probability_ != 0) {
+		if (mutation_ == NULL && parameters_.mutation_probability_ != 0) {
 			throw std::invalid_argument("The parameter \"mutation\" must be defined.");
 		}
-		if (recombination_ == NULL && parameters.recombination_rate_ != 0) {
+		if (recombination_ == NULL && parameters_.recombination_rate_ != 0) {
 			throw std::invalid_argument("The parameter \"recombination\" must be defined.");
 		}
 		if (fitness_function_ == NULL) {
@@ -282,10 +284,10 @@ private:
 		}
 	}
 	void CheckParameters() {
-		if (parameters.population_size_ % 2 != 0 || parameters.population_size_ < 2) {
+		if (parameters_.population_size_ % 2 != 0 || parameters_.population_size_ < 2) {
 			throw std::invalid_argument("The parameter \"population_size_\" must be an even number bigger or equal to 2.");
 		}
-		if (parameters.target_fitness_ == FLT_MAX && parameters.max_fitness_evaluations_ == -1 && parameters.max_generation_ == -1 && parameters.max_stagnation_ == -1) {
+		if (parameters_.target_fitness_ == FLT_MAX && parameters_.max_fitness_evaluations_ == -1 && parameters_.max_generation_ == -1 && parameters_.max_stagnation_ == -1) {
 			throw std::invalid_argument("At least one of the following stop conditions must be set: \"target_fitness_\", \"max_fitness_evaluations_\", \"max_generation_\", \"max_stagnation_\".");
 		}
 	}

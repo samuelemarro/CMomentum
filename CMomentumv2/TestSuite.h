@@ -12,7 +12,6 @@
 #include <limits>
 
 static class MathUtility {
-	template<typename T>
 	friend class TestSuite;
 	friend class DataPoint;
 private:
@@ -40,8 +39,16 @@ private:
 
 		return median;
 	}
+
+	template<typename T,
+		typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+		static float Average(std::vector<T> vector) {
+		float sum = std::accumulate(vector.begin(), vector.end(), 0.0f);
+		return sum / static_cast<float>(vector.size());
+	}
+
 	static float StandardDeviation(std::vector<float> data) {
-		return StandardDeviation(data, std::accumulate(data.begin(), data.end(), 0.0f) / static_cast<float>(data.size()));
+		return StandardDeviation(data, Average(data));
 	}
 	static float StandardDeviation(std::vector<float> data, float average) {
 		float sum = 0;
@@ -78,7 +85,7 @@ public:
 		if (!is_sorted) {
 			std::sort(data.begin(), data.end());
 		}
-		average = std::accumulate(data.begin(), data.end(), 0.0f) / static_cast<float>(data.size());
+		average = MathUtility::Average(data);
 		standard_deviation = MathUtility::StandardDeviation(data, average);
 		median = MathUtility::Median(data, true);
 
@@ -117,72 +124,12 @@ public:
 
 };
 
-enum TrackingType {
-	Fitness,
-	Diversity,
-	Both
-};
-
-template<typename T>
 class TestSuite {
-	template<typename T>
-	struct PartialTestResult {
-		friend class TestSuite<T>;
-		std::vector<int> evaluations_;
-		GeneticAlgorithm<T> ga_;
-		float median_ = INT32_MIN;
-
-		TestSuite::PartialTestResult<T>(GeneticAlgorithm<T> ga, int evaluations_size) : ga_(ga) {
-			evaluations_.reserve(evaluations_size);
-		}
-	};
-
 public:
-	static std::vector<TestSuite::PartialTestResult<T>> RunParallelTests(std::vector<GeneticAlgorithm<T>> gas, int test_size) {
 
-		std::vector<TestSuite::PartialTestResult<T>> results = std::vector<TestSuite::PartialTestResult<T>>();
-
-		for (int i = 0; i < gas.size(); i++) {
-			results.push_back(PartialTestResult<T>(gas[i], test_size));
-		}
-
-		int gas_size = gas.size();
-
-		int total_tests = gas.size() * test_size;
-		int executed_tests = 0;
-		std::random_device seed_generator;
-#pragma omp parallel
-		{
-#pragma omp for
-			for (int i = 0; i < gas_size * test_size; i++) {
-				FastRand::Seed(seed_generator());
-				int ga_index = i % gas_size;
-				GeneticAlgorithm<T> ga = gas[ga_index];
-				std::pair<bool, int> ga_result = ga.RunAlgorithm();
-				int evaluation = ga_result.first ? ga_result.second : INT32_MAX;
-#pragma omp critical
-				{
-					results[ga_index].evaluations_.push_back(evaluation);
-				}
-
-				executed_tests++;
-				if (executed_tests % std::max(1, total_tests / 100) == 0) {
-					EraseWriteLine("Progress: " + std::to_string(executed_tests * 100 / total_tests) + "%");
-				}
-			}
-		}
-
-		for (int i = 0; i < results.size(); i++)
-		{
-			results[i].median_ = MathUtility::Median(results[i].evaluations_);
-		}
-
-		std::cout << "\n";
-
-		return results;
-	}
-	static std::vector<std::pair<bool, int>> EvaluationsTest(GeneticAlgorithm<T> base_ga, int test_size) {
-		std::vector<std::pair<bool, int>> results = std::vector<std::pair<bool, int>>();
+	template<typename T>
+	static std::vector<std::vector<std::pair<int, float>>> ParallelTest(GeneticAlgorithm<T> base_ga, int test_size) {
+		std::vector<std::vector<std::pair<int, float>>> results = std::vector<std::vector<std::pair<int, float>>>();
 		int executed_tests = 0;
 		std::random_device seed_generator;
 #pragma omp parallel
@@ -191,7 +138,7 @@ public:
 			for (int i = 1; i <= test_size; i++) {
 				FastRand::Seed(seed_generator());
 				GeneticAlgorithm<T> ga = base_ga;
-				std::pair<bool, int> pair = ga.RunAlgorithm();
+				std::vector<std::pair<int, float>> pair = ga.RunAlgorithm();
 #pragma omp critical
 				{
 					results.push_back(pair);
@@ -208,100 +155,148 @@ public:
 		return results;
 	}
 
-	//Returns a pair with 1. The success rate 2. The median number of evaluations.
-	static std::pair<float, float> RunBaseTest(GeneticAlgorithm<T> base_ga, int test_size) {
-		std::vector<std::pair<bool, int>> result = EvaluationsTest(base_ga, test_size);
-		std::vector<int> evaluations = std::vector<int>();
+	struct TestResults {
+		DataPoint final_evaluations_stats_;
+		DataPoint overall_best_fitness_values_stats_;
+		std::vector<float> successful_executions_distribution_;
+		std::vector<float> average_best_fitness_values_plot_;
 
-		int total_successes = 0;
+		TestResults(DataPoint final_evaluations_stats,
+			DataPoint overall_best_fitness_values_stats,
+			std::vector<float> successful_executions_distribution,
+			std::vector<float> average_best_fitness_values_plot)
+			: final_evaluations_stats_(final_evaluations_stats),
+			overall_best_fitness_values_stats_(overall_best_fitness_values_stats),
+			successful_executions_distribution_(successful_executions_distribution),
+			average_best_fitness_values_plot_(average_best_fitness_values_plot)
+		{
 
-		for (std::pair<bool, int> pair : result) {
-			if (pair.first) {
-				total_successes++;
-			}
-			evaluations.push_back(pair.second);
 		}
-		return std::make_pair(MathUtility::Median(evaluations),//Median evaluations
-			(float)total_successes / result.size());//Success rate
-	}
+	};
 
-	static std::pair<DataPoint, std::vector<float>> SuccessRatesTest(GeneticAlgorithm<T> base_ga, int test_size, int section_size) {
-		std::vector<std::pair<bool, int>> results = EvaluationsTest(base_ga, test_size);
-		std::vector<int> sections = std::vector<int>();
+	template<typename T>
+	static TestResults CompleteTest(GeneticAlgorithm<T> base_ga, int test_size, int successful_executions_section_size, int best_fitness_values_section_size) {
+		
+		if (best_fitness_values_section_size < base_ga.parameters_.population_size_) {
+			throw std::invalid_argument("\"best_fitness_values_section_size\" must be bigger than or equal to the population size");
+		}
+		
+		std::vector<std::vector<std::pair<int, float>>> results = ParallelTest(base_ga, test_size);
 
-		std::vector<float> evaluations = std::vector<float>();
+		//======Find the final evaluations for each execution======
 
-		std::sort(results.begin(), results.end(), [](auto &left, auto &right) {
-			return left.second < right.second;
-		});
+		std::vector<float> final_evaluations = std::vector<float>();
+		for (std::vector<std::pair<int, float>> execution : results) {
+			final_evaluations.push_back(execution[execution.size() - 1].first);
+		}
 
-		for (std::pair<bool, int> pair : results) {
-			if (pair.first) {
-				int floored = pair.second - (pair.second % section_size);
-				int index = floored / section_size;
-				if (sections.size() < index + 1) {
-					sections.resize(index + 1);
+		DataPoint final_evaluations_stats = final_evaluations.size() > 0 ? DataPoint(final_evaluations) : DataPoint();
+
+		//======Find the best fitness for each execution======
+
+		std::vector<float> overall_best_fitness_values = std::vector<float>();
+		for (std::vector<std::pair<int, float>> execution : results) {
+			float overall_best_fitness = -FLT_MAX;
+			//Each pair stores the best fitness (stored_data.second) after the specific amount of evaluations (stored_data.first)
+			for (std::pair<int, float> stored_data : execution) {
+				if (stored_data.second > overall_best_fitness) {
+					overall_best_fitness = stored_data.second;
 				}
-				sections[index]++;
+			}
+			overall_best_fitness_values.push_back(overall_best_fitness);
+		}
 
-				evaluations.push_back(pair.second);
+		DataPoint overall_best_fitness_values_stats = overall_best_fitness_values.size() > 0 ? DataPoint(overall_best_fitness_values) : DataPoint();
+
+		//======Find the distribution of the successful executions======
+		std::vector<float> successful_executions_distribution = std::vector<float>();
+		for (int i = 0; i < results.size(); i++) {
+			std::vector<std::pair<int, float>> execution = results[i];
+
+			float overall_best_fitness = overall_best_fitness_values[i];
+			int total_evaluations = execution[execution.size() - 1].first;
+
+			//If the execution was successful
+			if (overall_best_fitness >= base_ga.parameters_.target_fitness_) {
+				int final_fitness_evaluations = execution[execution.size() - 1].first;
+
+				//Find the section
+				int floored = total_evaluations - (total_evaluations % successful_executions_section_size);
+				int section_index = floored / successful_executions_section_size;
+
+				//Make sure that there are enough sections
+				if (successful_executions_distribution.size() < section_index + 1) {
+					successful_executions_distribution.resize(section_index + 1);
+				}
+
+				//Store the success in the corresponding section
+				successful_executions_distribution[section_index] += 1 / (float)results.size();
 			}
 		}
 
-		std::vector<float> success_rates = std::vector<float>();
+		//======Plot the average best fitness values by evaluation number======
+		std::vector<std::vector<float>> best_fitness_values = std::vector<std::vector<float>>();
 
-		//Compute the success rate
-		for (int i = 0; i < sections.size(); i++) {
-			success_rates.push_back(static_cast<float>(sections[i]) / results.size());
-		}
+		//Find the maximum number of sections
+		int max_sections = 1 + (base_ga.parameters_.max_fitness_evaluations_ - (base_ga.parameters_.max_fitness_evaluations_ % best_fitness_values_section_size)) / best_fitness_values_section_size;
 
-		DataPoint datapoint = evaluations.size() > 0 ? DataPoint(evaluations, true) : DataPoint();
-
-		return std::make_pair(datapoint,//Datapoint of the successful executions
-			success_rates);//Distribution of executions (sum = success rate)
-	}
-
-	static GeneticAlgorithm<T> SelectBestConfiguration(std::vector<GeneticAlgorithm<T>> gas, int base_test_size, float test_size_increase_rate, float tournament_elimination) {
-
-		std::vector<TestSuite::PartialTestResult<T>> tournament = std::vector<TestSuite::PartialTestResult<T>>();
-		int tournament_size = gas.size();
-		int test_size = base_test_size;
-		int tournament_number = 1;
-
-		//tournament.resize requires an object to use in case the vector's size is increased (which is not going to happen)
-		TestSuite::PartialTestResult<T> empty_test = PartialTestResult<T>(PartialTestResult<T>(gas[0], 0));
-
-		if (tournament_size == 1) {
-			return gas[0];
-		}
-
-		while (tournament_size > 1) {
-			std::cout << "Running tournament n. " << std::to_string(tournament_number) << ": " << std::to_string(test_size) << " tests for " << std::to_string(tournament_size) << " configurations" << std::endl;
-
-			tournament = RunParallelTests(gas, test_size);
-
-			//Sort in ascending order by executed evaluations
-			std::sort(tournament.begin(), tournament.end(),
-				[](const auto& lhs, const auto& rhs) {
-				return lhs.median_ < rhs.median_;
-			});
-
-			//If the tournament size doesn't change (due to rounding), the tournament size is reduced by 1. The tournament size must also be at least 1.
-			tournament_size = std::max(1, std::min(static_cast<int>(static_cast<float>(tournament_size) * (1 - tournament_elimination)), tournament_size - 1));
-			test_size *= (1 + test_size_increase_rate);
-
-			//The first tournament will be resized to the same size as before
-			tournament.resize(tournament_size, empty_test);
-
-			gas.clear();
-			gas.reserve(tournament_size);
-			for (int i = 0; i < tournament_size; i++) {
-				gas.push_back(tournament[i].ga_);
+		//Prepare the grid
+		for (int i = 0; i < max_sections; i++) {
+			std::vector<float> section_fitness_values = std::vector<float>();
+			
+			for (int j = 0; j < results.size(); j++) {
+				section_fitness_values.push_back(0);
 			}
 
-			tournament_number++;
+			best_fitness_values.push_back(section_fitness_values);
 		}
-		return tournament[0].ga_;
+
+		//Store the fitness values in the grid
+		for (int i = 0; i < results.size(); i++) {
+			for (int j = 0; j < max_sections; j++) {
+
+				int min = j * best_fitness_values_section_size;
+				int max = (j + 1) * best_fitness_values_section_size;
+				//Find all the pairs for the current execution where the evaluation number is within the boundaries.
+				//Store the best fitness for each
+
+				std::vector<float> best_fitness_values_found = std::vector<float>();
+
+				for (std::pair<int, float> pair : results[i]) {
+					if (pair.first >= min && pair.first < max) {
+						best_fitness_values_found.push_back(pair.second);
+					}
+					if (pair.first >= max) {
+						break;
+					}
+				}
+
+				if (best_fitness_values_found.size() == 0) {
+					//If it couldn't find values, store the previous value
+					//Q: What if we're considering the first section?
+					//A: That's impossible: The GA stores the initial population in the first section, so at least one value will be always found
+
+					best_fitness_values[j][i] = best_fitness_values[j - 1][i];
+				}
+				else if (best_fitness_values_found.size() == 1) {
+					//If we could only find one value, we store it
+					best_fitness_values[j][i] = best_fitness_values_found[0];
+				}
+				else {
+					//If we found multiple values, store their average
+					best_fitness_values[j][i] = MathUtility::Average(best_fitness_values_found);
+				}
+			}
+		}
+
+		std::vector<float> average_best_fitness_values_plot = std::vector<float>();
+
+		//Find the average for each section
+		for (std::vector<float> data : best_fitness_values) {
+			average_best_fitness_values_plot.push_back(MathUtility::Average(data));
+		}
+
+		return TestResults(final_evaluations_stats, overall_best_fitness_values_stats, successful_executions_distribution, average_best_fitness_values_plot);
 	}
 
 	static void EraseWriteLine(std::string text) {

@@ -448,23 +448,23 @@ std::string ScientificNotation(float x, const int decimal_digits) {
 }
 
 template<typename T>
-void RunCompleteTest(std::string name, GeneticAlgorithm<T> ga, int test_size, int section_size, std::string directory) {
+void RunCompleteTest(std::string name, GeneticAlgorithm<T> ga, int test_size, int successful_executions_section_size, int best_fitness_values_section_size, std::string directory) {
 
 	std::cout << "Running Success Rate Test...\n";
-	std::pair<DataPoint, std::vector<float>> result = TestSuite<T>::SuccessRatesTest(ga, test_size, section_size);
+	TestSuite::TestResults result = TestSuite::CompleteTest(ga, test_size, successful_executions_section_size, best_fitness_values_section_size);
 
 	directory.erase(directory.find_last_of('\\') + 1);
 
-	std::string file_name = name + " " + std::to_string(ga.parameters.chromosome_length_);
-	if (ga.parameters.additional_parameters_.find("range_max") != ga.parameters.additional_parameters_.end()) {
-		file_name += " " + FloatFormat(ga.parameters.additional_parameters_["range_max"], 2);
+	std::string file_name = name + " " + std::to_string(ga.parameters_.chromosome_length_);
+	if (ga.parameters_.additional_parameters_.find("range_max") != ga.parameters_.additional_parameters_.end()) {
+		file_name += " " + FloatFormat(ga.parameters_.additional_parameters_["range_max"], 2);
 	}
 
-	if (ga.parameters.target_fitness_ != 0) {
-		file_name += " " + ScientificNotation(ga.parameters.target_fitness_, 2);
+	if (ga.parameters_.target_fitness_ != 0) {
+		file_name += " " + ScientificNotation(ga.parameters_.target_fitness_, 2);
 	}
 
-	file_name += std::string(" ") + (ga.parameters.recombination_rate_ == 0 ? "Standard" : "Optimised");
+	file_name += std::string(" ") + (ga.parameters_.recombination_rate_ == 0 ? "Standard" : "Optimised");
 
 	std::string finish_time = FormatTime(std::time(nullptr), "%d-%m-%y %H-%M-%S");
 
@@ -474,26 +474,36 @@ void RunCompleteTest(std::string name, GeneticAlgorithm<T> ga, int test_size, in
 
 	result_file << "EXECUTION PARAMETERS:\n";
 	result_file << "Name: " << name << "\n";
-	//result_file << "Base Test Size: " << std::to_string(base_test_size) << "\n";
-	//result_file << "Test Size Increase Rate: " << std::to_string(test_size_increase_rate) << "\n";
-	//result_file << "Elimination Rate: " << std::to_string(elimination_rate) << "\n";
 	result_file << "Test Size: " << std::to_string(test_size) << "\n";
-	result_file << "Section Size: " << std::to_string(section_size) << "\n\n";
+	result_file << "Success Rate Section Size: " << std::to_string(successful_executions_section_size) << "\n";
+	result_file << "Best Fitness Values Section Size: " << std::to_string(best_fitness_values_section_size) << "\n\n";
 
-	result_file << "BEST:\n";
-	result_file << ga.parameters.ToString() << "\n\n";
+	result_file << "GA PARAMETERS:\n";
+	result_file << ga.parameters_.ToString() << "\n\n";
 
-	result_file << "Success Rate: " << std::to_string(std::accumulate(result.second.begin(), result.second.end(), 0.0f)) << "\n\n";
+	result_file << "Success Rate: " << std::to_string(std::accumulate(result.successful_executions_distribution_.begin(), result.successful_executions_distribution_.end(), 0.0f)) << "\n\n";
 
-	result_file << "SUCCESSFUL EXECUTIONS STATISTICS:\n";
-	result_file << result.first.ToString() << "\n\n";
+	result_file << "OVERALL BEST FITNESS STATISTICS:\n";
+	result_file << result.overall_best_fitness_values_stats_.ToString() << "\n\n";
 
-	result_file << "SUCCESSFUL EXECUTIONS BREAKDOWN:\n";
+	result_file << "FINAL EVALUATION STATISTICS:\n";
+	result_file << result.final_evaluations_stats_.ToString() << "\n\n";
 
-	int section_counter = section_size;
-	for (int i = 0; i < result.second.size(); i++) {
-		result_file << std::to_string(section_counter) << ";" << std::to_string(result.second[i]) << "\n";
-		section_counter += section_size;
+
+	result_file << "AVERAGE BEST FITNESS PLOT:\n";
+
+	int best_fitness_values_section_counter = best_fitness_values_section_size;
+	for (int i = 0; i < result.average_best_fitness_values_plot_.size(); i++) {
+		result_file << std::to_string(best_fitness_values_section_counter) << ";" << std::to_string(result.average_best_fitness_values_plot_[i]) << "\n";
+		best_fitness_values_section_counter += best_fitness_values_section_size;
+	}
+
+	result_file << "\n\nSUCCESSFUL EXECUTIONS DISTRIBUTION:\n";
+
+	int successful_executions_section_counter = successful_executions_section_size;
+	for (int i = 0; i < result.successful_executions_distribution_.size(); i++) {
+		result_file << std::to_string(successful_executions_section_counter) << ";" << std::to_string(result.successful_executions_distribution_[i]) << "\n";
+		successful_executions_section_counter += best_fitness_values_section_size;
 	}
 
 	result_file.flush();
@@ -552,6 +562,12 @@ GeneticAlgorithmParameters LoadParameters(std::string path) {
 	return j;
 }
 
+void ClearScreen() {
+	for (int i = 0; i < 10; i++) {
+		std::cout << "\n\n\n\n\n\n\n\n\n\n";
+	}
+}
+
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
@@ -571,15 +587,31 @@ int main(int argc, char **argv)
 
 	std::string path = "C:\\Users\\Samuele\\Documents\\visual studio 2017\\Projects\\CMomentumv2\\x64\\Release\\Rastrigin5.gap";
 
-	//SaveParameters(path, gas[0].parameters, 4);
-	GeneticAlgorithmParameters gap = LoadParameters(path);
-	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, RastriginFitness);
-	
-	//RunCompleteTest("Rastrigin", ga, final_test_size, 100, directory);
-	
-	std::pair<DataPoint, std::vector<float>> result = TestSuite<float>::SuccessRatesTest(MakeRastrigin5Standard(false), 100, 100);
+	float target_success_rate = 0.95f;
 
-	float success_rate = std::accumulate(result.second.begin(), result.second.end(), 0.0f);
+	//PROBLEMA: Se il succrate è 0 viene -inf (quindi estremamente favorevole)
+	//TODO: Controllare >/>=
+	while (true) {
+		ClearScreen();
+		GeneticAlgorithmParameters gap = LoadParameters(path);
+		GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, RastriginFitness);
+
+		//RunCompleteTest("Rastrigin", ga, final_test_size, 100, 100, directory);
+		TestSuite::TestResults result = TestSuite::CompleteTest(ga, 20, 100, 200);
+
+		float success_rate = std::accumulate(result.successful_executions_distribution_.begin(), result.successful_executions_distribution_.end(), 0.0f);
+		float average_evaluation = result.final_evaluations_stats_.average;
+
+		float N = std::log(1 - target_success_rate) / std::log(1 - success_rate);
+		float actual_average_evaluation = average_evaluation * N;
+
+		std::cout << "Average Best Fitness: " << FloatFormat(result.overall_best_fitness_values_stats_.average, 8) << "\n";
+		std::cout << "Success Rate: " << FloatFormat(success_rate, 5) << "\n";
+		std::cout << "Average Evaluations: " << FloatFormat(average_evaluation, 2) << "\n";
+		std::cout << "N: " << FloatFormat(N, 2) << "\n";
+		std::cout << "Actual Average Evaluations: " << FloatFormat(actual_average_evaluation, 2) << "\n";
+		system("PAUSE");
+	}
 
 	return 0;
 }
