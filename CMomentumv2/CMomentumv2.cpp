@@ -568,6 +568,11 @@ void ClearScreen() {
 	}
 }
 
+float ActualEvaluationsNumber(int evaluations, float target_rate, float actual_rate) {
+	float N = std::log(1 - target_rate) / std::log(1 - actual_rate);
+	return evaluations * N;
+}
+
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
@@ -596,7 +601,7 @@ int main(int argc, char **argv)
 		GeneticAlgorithmParameters gap = LoadParameters(path);
 		GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, RastriginFitness);
 
-		//RunCompleteTest("Rastrigin", ga, final_test_size, 100, 100, directory);
+		RunCompleteTest("Rastrigin", ga, 5, 100, 100, directory);
 		TestSuite::TestResults result = TestSuite::CompleteTest(ga, 20, 100, 200);
 
 		float success_rate = std::accumulate(result.successful_executions_distribution_.begin(), result.successful_executions_distribution_.end(), 0.0f);

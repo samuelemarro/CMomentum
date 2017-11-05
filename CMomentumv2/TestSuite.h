@@ -263,10 +263,10 @@ public:
 				std::vector<float> best_fitness_values_found = std::vector<float>();
 
 				for (std::pair<int, float> pair : results[i]) {
-					if (pair.first >= min && pair.first < max) {
+					if (pair.first > min && pair.first <= max) {
 						best_fitness_values_found.push_back(pair.second);
 					}
-					if (pair.first >= max) {
+					if (pair.first > max) {
 						break;
 					}
 				}
@@ -274,7 +274,7 @@ public:
 				if (best_fitness_values_found.size() == 0) {
 					//If it couldn't find values, store the previous value
 					//Q: What if we're considering the first section?
-					//A: That's impossible: The GA stores the initial population in the first section, so at least one value will be always found
+					//A: That's impossible: The GA stores the initial best fitness in the first section, so at least one value will be always found
 
 					best_fitness_values[j][i] = best_fitness_values[j - 1][i];
 				}
