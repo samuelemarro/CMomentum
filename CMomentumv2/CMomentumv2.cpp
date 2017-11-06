@@ -35,7 +35,7 @@ void RealValuedMutation(Chromosome<float>& chromosome, std::map<std::string, flo
 	float gene_mutation_rate = additional_parameters["gene_mutation_rate"];
 	float range_min = additional_parameters["range_min"];
 	float range_max = additional_parameters["range_max"];
-	float mutation_size = additional_parameters["relative_mutation_size"] * (range_max - range_min);
+	float mutation_size = additional_parameters["mutation_size"];
 
 	for (int i = 0; i < chromosome.genes_.size(); i++) {
 		if (FastRand::RandomFloat() < gene_mutation_rate) {
@@ -135,7 +135,7 @@ void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& pa
 	if (recombination_rate != 0) {
 		float range_min = additional_parameters["range_min"];
 		float range_max = additional_parameters["range_max"];
-		float mutation_size = additional_parameters["relative_mutation_size"] * (range_max - range_min);
+		float mutation_size = additional_parameters["mutation_size"];
 
 		float diff_sum = 0;
 		int diff_count = 0;
@@ -227,182 +227,6 @@ float RosenbrockFitness(Chromosome<float>& chromosome, std::map<std::string, flo
 			(chromosome.genes_[i] - 1) * (chromosome.genes_[i] - 1);
 	}
 	return -sum;
-}
-
-const int knapsack_volumes[5] = { 1, 2, 3, 4, 5 };
-const int knapsack_values[5] = { 1, 2, 3, 4, 5 };
-const int max_volume = 10;
-const int best_value = 10;
-
-float KnapsackFitness(Chromosome<bool>& chromosome, std::map<std::string, float>& additional_parameters) {
-
-	int volume = 0;
-	int value = 0;
-	do
-	{
-		for (int i = 0; i < chromosome.genes_.size(); i++) {
-			if (chromosome.genes_[i]) {
-				volume += knapsack_volumes[i];
-				value += knapsack_values[i];
-			}
-		}
-
-		if (volume > max_volume) {
-			int random_index = FastRand::RandomInt(chromosome.genes_.size());
-			if (chromosome.genes_[random_index]) {
-				chromosome.genes_[random_index] = false;
-			}
-		}
-	} while (volume > max_volume);
-
-	return value - best_value;
-}
-
-std::vector<GeneticAlgorithm<bool>> MakeBinaryGas(std::function<float(Chromosome<bool>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length, float target, int max_fitness_evaluations, int max_stagnation) {
-
-	std::vector<GeneticAlgorithm<bool>> gas = std::vector<GeneticAlgorithm<bool>>();
-
-	std::vector<int> population_sizes = { 100, 200 };
-	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
-	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
-
-	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
-	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> recombination_rates;
-	if (optimised) {
-		recombination_rates = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f };
-	}
-	else {
-		recombination_rates = { 0 };
-	}
-
-	for each(int population_size in population_sizes) {
-		for each(float mutation_probability in mutation_probabilities) {
-			for each(float crossover_probability in crossover_probabilities) {
-				for each(float elitism_rate in elitism_rates) {
-					for each(int tournament_size in tournament_sizes) {
-						for each (float gene_mutation_rate in gene_mutation_rates) {
-							for each (float recombination_rate in recombination_rates) {
-
-								GeneticAlgorithmParameters gap;
-
-								gap.target_fitness_ = 0;
-
-								gap.chromosome_length_ = chromosome_length;
-
-								gap.population_size_ = population_size;
-								gap.mutation_probability_ = mutation_probability;
-								gap.crossover_probability_ = crossover_probability;
-								gap.elitism_rate_ = elitism_rate;
-
-								gap.additional_parameters_["tournament_size"] = tournament_size;
-								gap.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
-
-								gap.recombination_rate_ = recombination_rate;
-
-								gap.max_fitness_evaluations_ = max_fitness_evaluations;
-								gap.max_stagnation_ = max_stagnation;
-
-								GeneticAlgorithm<bool> ga = GeneticAlgorithm<bool>(
-									gap,
-									BinaryInitialization,
-									TournamentSelection<bool>,
-									TwoPointCrossover<bool>,
-									BitFlipMutation,
-									BinaryRecombination,
-									fitness);
-
-								gas.push_back(ga);
-							}
-
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return gas;
-}
-
-std::vector<GeneticAlgorithm<float>> MakeRealValuedGas(std::function<float(Chromosome<float>&, std::map<std::string, float>& additional_parameters)> fitness, bool optimised, int chromosome_length, float bound, float target, int max_fitness_evaluations, int max_stagnation) {
-	std::vector<GeneticAlgorithm<float>> gas = std::vector<GeneticAlgorithm<float>>();
-
-	std::vector<int> population_sizes = { 100, 200 };
-	std::vector<float> mutation_probabilities = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> crossover_probabilities = { 0.6f, 0.65f, 0.7f, 0.75f, 0.8f };
-	std::vector<float> elitism_rates = { 0.05f, 0.1f, 0.15f };
-
-	std::vector<int> tournament_sizes = { 2, 3, 4, 5 };
-	std::vector<float> gene_mutation_rates = { 0.05f, 0.1f, 0.15f };
-	std::vector<float> relative_mutation_sizes = { 0.05f, 0.1f, 0.2f };
-
-	std::vector<float> crossover_ratios = { 0, 0.25f };
-
-	std::vector<float> recombination_rates;
-	if (optimised) {
-		recombination_rates = { 0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.3f/*, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1*/ };
-	}
-	else {
-		recombination_rates = { 0 };
-	}
-
-	for each(int population_size in population_sizes) {
-		for each(float mutation_probability in mutation_probabilities) {
-			for each(float crossover_probability in crossover_probabilities) {
-				for each(float elitism_rate in elitism_rates) {
-					for each(int tournament_size in tournament_sizes) {
-						for each (float gene_mutation_rate in gene_mutation_rates) {
-							for each(float relative_mutation_size in relative_mutation_sizes) {
-								for each(float crossover_ratio in crossover_ratios) {
-									for each (float recombination_rate in recombination_rates) {
-
-										GeneticAlgorithmParameters gap = GeneticAlgorithmParameters();
-
-										gap.target_fitness_ = target;
-
-										gap.chromosome_length_ = chromosome_length;
-
-										gap.population_size_ = population_size;
-										gap.mutation_probability_ = mutation_probability;
-										gap.crossover_probability_ = crossover_probability;
-										gap.elitism_rate_ = elitism_rate;
-
-										gap.additional_parameters_["range_min"] = -bound;
-										gap.additional_parameters_["range_max"] = bound;
-
-										gap.additional_parameters_["tournament_size"] = tournament_size;
-										gap.additional_parameters_["gene_mutation_rate"] = gene_mutation_rate;
-										gap.additional_parameters_["relative_mutation_size"] = relative_mutation_size;
-										gap.additional_parameters_["crossover_ratio"] = crossover_ratio;
-
-										gap.recombination_rate_ = recombination_rate;
-
-										gap.max_fitness_evaluations_ = max_fitness_evaluations;
-										gap.max_stagnation_ = max_stagnation;
-
-										GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
-											gap,
-											UniformInitialization,
-											TournamentSelection<float>,
-											IntermediateCrossover,
-											RealValuedMutation,
-											RealValuedRecombination,
-											fitness);
-
-										gas.push_back(ga);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return gas;
 }
 
 std::string FormatTime(std::time_t time_to_format, char* format) {
@@ -510,42 +334,6 @@ void RunCompleteTest(std::string name, GeneticAlgorithm<T> ga, int test_size, in
 	result_file.close();
 }
 
-
-GeneticAlgorithm<float> MakeRastrigin5Standard(bool original) {
-
-	GeneticAlgorithmParameters gap = GeneticAlgorithmParameters();
-
-	gap.chromosome_length_ = 5;
-
-	gap.population_size_ = original ? 100 : 200;
-	gap.mutation_probability_ = 0.15f;
-	gap.crossover_probability_ = 0.65f;
-	gap.elitism_rate_ = original ? 0.05f : 0.1f;
-	gap.recombination_rate_ = 0;
-
-	gap.additional_parameters_["range_min"] = -5.12f;
-	gap.additional_parameters_["range_max"] = 5.12f;
-
-	gap.additional_parameters_["tournament_size"] = 2;
-	gap.additional_parameters_["gene_mutation_rate"] = 0.15f;
-	gap.additional_parameters_["relative_mutation_size"] = original ? 0.1f : 0.2f;
-	gap.additional_parameters_["crossover_ratio"] = 0.25f;
-
-	gap.target_fitness_ = -1e-5;
-	gap.max_fitness_evaluations_ = 100000;
-
-	GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(
-		gap,
-		UniformInitialization,
-		TournamentSelection<float>,
-		IntermediateCrossover,
-		RealValuedMutation,
-		RealValuedRecombination,
-		RastriginFitness);
-
-	return ga;
-}
-
 void SaveParameters(std::string path, GeneticAlgorithmParameters gap, int indentation) {
 	std::ofstream file(path);
 	nlohmann::json j = gap;
@@ -581,27 +369,25 @@ int main(int argc, char **argv)
 	//Automatizzare
 	//Pausa
 
-	int base_test_size = 10;
-	float test_size_increase_rate = 1;
-	float elimination_rate = 0.9f;
+	//int base_test_size = 10;
+	//float test_size_increase_rate = 1;
+	//float elimination_rate = 0.9f;
 
-	int final_test_size = 100000;
+	//int final_test_size = 100000;
 
-	std::vector<GeneticAlgorithm<float>> gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, -1);
+	//std::vector<GeneticAlgorithm<float>> gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, -1);
 	//to_json(j, gas[0]);
 
 	std::string path = "C:\\Users\\Samuele\\Documents\\visual studio 2017\\Projects\\CMomentumv2\\x64\\Release\\Rastrigin5.gap";
 
 	float target_success_rate = 0.95f;
 
-	//PROBLEMA: Se il succrate è 0 viene -inf (quindi estremamente favorevole)
-	//TODO: Controllare >/>=
 	while (true) {
 		ClearScreen();
 		GeneticAlgorithmParameters gap = LoadParameters(path);
 		GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, RastriginFitness);
 
-		RunCompleteTest("Rastrigin", ga, 5, 100, 100, directory);
+		//RunCompleteTest("Rastrigin", ga, 5, 100, 100, directory);
 		TestSuite::TestResults result = TestSuite::CompleteTest(ga, 20, 100, 200);
 
 		float success_rate = std::accumulate(result.successful_executions_distribution_.begin(), result.successful_executions_distribution_.end(), 0.0f);

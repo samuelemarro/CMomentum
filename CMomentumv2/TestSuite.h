@@ -245,7 +245,7 @@ public:
 			std::vector<float> section_fitness_values = std::vector<float>();
 			
 			for (int j = 0; j < results.size(); j++) {
-				section_fitness_values.push_back(0);
+				section_fitness_values.push_back(FLT_MAX);
 			}
 
 			best_fitness_values.push_back(section_fitness_values);
