@@ -93,7 +93,7 @@ public:
 	std::function<std::pair<Chromosome<T>*, Chromosome<T>*>(std::vector<std::unique_ptr<Chromosome<T>>>&, std::map<std::string, float>&)> selection_ = nullptr;
 	std::function<void(Chromosome<T>&, Chromosome<T>&, std::map<std::string, float>&)> crossover_ = nullptr;
 	std::function<void(Chromosome<T>&, std::map<std::string, float>&)> mutation_ = nullptr;
-	std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination_ = nullptr;
+	std::function<void(Chromosome<T>&, float, std::map<std::string, float>&)> recombination_ = nullptr;
 	std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function_ = nullptr;
 
 	GeneticAlgorithmParameters parameters_;
@@ -105,7 +105,7 @@ public:
 		std::function<std::pair<Chromosome<T>*, Chromosome<T>*>(std::vector<std::unique_ptr<Chromosome<T>>>&, std::map<std::string, float>&)> selection,
 		std::function<void(Chromosome<T>&, Chromosome<T>&, std::map<std::string, float>&)> crossover,
 		std::function<void(Chromosome<T>&, std::map<std::string, float>&)> mutation,
-		std::function<void(Chromosome<T>&, const Parent<T>&, float, std::map<std::string, float>&)> recombination,
+		std::function<void(Chromosome<T>&, float, std::map<std::string, float>&)> recombination,
 		std::function<float(Chromosome<T>&, std::map<std::string, float>&)> fitness_function)
 		: parameters_(parameters),
 		initialization_(initialization),
@@ -204,22 +204,7 @@ public:
 				}
 
 				if (chromosome->has_parents_) {
-					//If both parents are eligible, pick one randomly
-					if (chromosome->fitness_ < chromosome->parent1_.fitness_ && chromosome->fitness_ < chromosome->parent2_.fitness_)
-					{
-						if (FastRand::RandomInt(2) == 0) {
-							recombination_(*chromosome, chromosome->parent1_, parameters_.recombination_rate_, parameters_.additional_parameters_);
-						}
-						else {
-							recombination_(*chromosome, chromosome->parent2_, parameters_.recombination_rate_, parameters_.additional_parameters_);
-						}
-					}
-					else if (chromosome->fitness_ < chromosome->parent1_.fitness_) {
-						recombination_(*chromosome, chromosome->parent1_, parameters_.recombination_rate_, parameters_.additional_parameters_);
-					}
-					else if (chromosome->fitness_ < chromosome->parent2_.fitness_) {
-						recombination_(*chromosome, chromosome->parent2_, parameters_.recombination_rate_, parameters_.additional_parameters_);
-					}
+					recombination_(*chromosome, parameters_.recombination_rate_, parameters_.additional_parameters_);
 				}
 
 				if (!chromosome->fitness_is_valid_) {

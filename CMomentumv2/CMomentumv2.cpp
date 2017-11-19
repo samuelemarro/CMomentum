@@ -14,6 +14,8 @@
 #include <iomanip>
 #include <sstream>
 #include <chrono>
+
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include "Core.h"
@@ -131,29 +133,23 @@ void BinaryRecombination(Chromosome<bool>& current, const Parent<bool>& parent, 
 	}
 }
 
-void RealValuedRecombination(Chromosome<float>& current, const Parent<float>& parent, float recombination_rate, std::map<std::string, float>& additional_parameters) {
+void RealValuedRecombination(Chromosome<float>& current, float recombination_rate, std::map<std::string, float>& additional_parameters) {
 	if (recombination_rate != 0) {
 		float range_min = additional_parameters["range_min"];
 		float range_max = additional_parameters["range_max"];
-		float mutation_size = additional_parameters["mutation_size"];
-
-		float diff_sum = 0;
-		int diff_count = 0;
-		std::vector<float> diff = std::vector<float>();
-		for (int i = 0; i < current.genes_.size(); i++) {
-			float diff_element = std::abs(current.genes_[i] - parent.genes_[i]);
-			diff.push_back(diff_element);
-			diff_sum += diff_element;
-			if (diff_element != 0) {
-				diff_count++;
-			}
-		}
 
 		for (int i = 0; i < current.genes_.size(); i++) {
-			if (diff[i] != 0 && FastRand::RandomFloat() < recombination_rate * diff_count * diff[i] / diff_sum) {
-				float added_value = FastRand::RandomFloat(-mutation_size, +mutation_size);
-				current.genes_[i] = std::min(std::max(current.genes_[i] + added_value, range_min), range_max);
-			}
+			float y1 = (current.fitness_ - current.parent1_.fitness_) / current.fitness_;
+			float y2 = (current.fitness_ - current.parent2_.fitness_) / current.fitness_;
+			float x1 = (current.genes_[i] - current.parent1_.genes_[i]) / current.genes_[i];
+			float x2 = (current.genes_[i] - current.parent2_.genes_[i]) / current.genes_[i];
+
+			float m1 = x1 == 0 ? 0 : y1 / x1;
+			float m2 = x2 == 0 ? 0 : y2 / x2;
+
+			float m = m1 + m2;
+
+			current.genes_[i] = std::min(std::max(current.genes_[i] + m * std::abs(current.parent1_.genes_[i] - current.parent2_.genes_[i]) * recombination_rate, range_min), range_max);
 		}
 	}
 }
@@ -193,11 +189,11 @@ float OneMaxFitness(Chromosome<bool>& chromosome, std::map<std::string, float>& 
 }
 
 float SphereFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
-	float fitness = 0;
+	float sum = 0;
 	for each(float gene in chromosome.genes_) {
-		fitness -= gene * gene;
+		sum += gene * gene;
 	}
-	return fitness;
+	return -sum;
 }
 
 float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
@@ -209,24 +205,59 @@ float GriewankFitness(Chromosome<float>& chromosome, std::map<std::string, float
 		product *= std::cos(chromosome.genes_[i] / std::sqrt(i + 1));
 	}
 
-	return -(sum / 4000 - product + 1);
+	float total = sum / 4000 - product + 1;
+	return -total;
 }
 
 float RastriginFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
 	float sum = 0;
 	for (int i = 0; i < chromosome.genes_.size(); i++) {
-		sum += chromosome.genes_[i] * chromosome.genes_[i] - 10 * std::cosf(2 * std::_Pi * chromosome.genes_[i]);
+		sum += chromosome.genes_[i] * chromosome.genes_[i] - 10 * std::cos(2 * std::_Pi * chromosome.genes_[i]);
 	}
-	return -(10 * chromosome.genes_.size() + sum);
+	float total = 10 * chromosome.genes_.size() + sum;
+	return -total;
 }
 
 float RosenbrockFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
 	float sum = 0;
+
 	for (int i = 0; i < chromosome.genes_.size() - 1; i++) {
-		sum += 100 * (chromosome.genes_[i + 1] - chromosome.genes_[i] * chromosome.genes_[i]) * (chromosome.genes_[i + 1] - chromosome.genes_[i] * chromosome.genes_[i]) +
-			(chromosome.genes_[i] - 1) * (chromosome.genes_[i] - 1);
+
+		float current_gene = chromosome.genes_[i];
+		float next_gene = chromosome.genes_[i + 1];
+
+		sum += 100 * (next_gene - current_gene * current_gene) * (next_gene - current_gene * current_gene) +
+			(current_gene - 1) * (current_gene - 1);
 	}
 	return -sum;
+}
+
+float AckleyFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	//Using double instead of float due to some nasty approximation errors
+	double square_sum = 0;
+	double cos_sum = 0;
+	for (int i = 0; i < chromosome.genes_.size(); i++) {
+		square_sum += chromosome.genes_[i] * chromosome.genes_[i];
+		cos_sum += std::cos(2 * M_PI * chromosome.genes_[i]);
+	}
+
+	double square_exp = -20 * std::exp(-0.2f * std::sqrt(square_sum / (double)chromosome.genes_.size()));
+	double cos_exp = -std::exp(cos_sum / (double)chromosome.genes_.size());
+
+	double total = square_exp + cos_exp + 20 + M_E;
+
+	return -total;
+}
+
+float SchwefelFitness(Chromosome<float>& chromosome, std::map<std::string, float>& additional_parameters) {
+	float sum = 0;
+	for (int i = 0; i < chromosome.genes_.size(); i++) {
+		sum += chromosome.genes_[i] * std::sin(std::sqrt(std::abs(chromosome.genes_[i])));
+	}
+
+	float total = 418.9829f * (float)chromosome.genes_.size() - sum;
+
+	return -total;
 }
 
 std::string FormatTime(std::time_t time_to_format, char* format) {
@@ -276,8 +307,6 @@ void RunCompleteTest(std::string name, GeneticAlgorithm<T> ga, int test_size, in
 
 	std::cout << "Running Success Rate Test...\n";
 	TestSuite::TestResults result = TestSuite::CompleteTest(ga, test_size, successful_executions_section_size, best_fitness_values_section_size);
-
-	directory.erase(directory.find_last_of('\\') + 1);
 
 	std::string file_name = name + " " + std::to_string(ga.parameters_.chromosome_length_);
 	if (ga.parameters_.additional_parameters_.find("range_max") != ga.parameters_.additional_parameters_.end()) {
@@ -364,6 +393,7 @@ float ActualEvaluationsNumber(int evaluations, float target_rate, float actual_r
 int main(int argc, char **argv)
 {
 	std::string directory = argv[0];
+	directory.erase(directory.find_last_of('\\') + 1);
 
 	//TODO:
 	//Automatizzare
@@ -375,34 +405,117 @@ int main(int argc, char **argv)
 
 	//int final_test_size = 100000;
 
-	//std::vector<GeneticAlgorithm<float>> gas = MakeRealValuedGas(RastriginFitness, false, 5, 5.12f, -1e-5f, 100000, -1);
-	//to_json(j, gas[0]);
+	//Chromosome<float> c = Chromosome<float>();
+	//c.genes_.push_back(420.9687f);
+	//c.genes_.push_back(420.9687f);
+	//float a = SchwefelFitness(c, std::map<std::string, float>());
 
-	std::string path = "C:\\Users\\Samuele\\Documents\\visual studio 2017\\Projects\\CMomentumv2\\x64\\Release\\Rastrigin5.gap";
+	std::string name = "";
+	std::string path = "";
+	int test_size = -1;
+	std::string function_name = "";
+	bool use_adjusted = false;
+
+	bool proceed = false;
+	do {
+		ClearScreen();
+		std::cout << "Insert the name of the test file\n";
+		std::cin >> name;
+		path = directory + "Functions\\" + name + ".gap";
+		proceed = (bool)std::ifstream(path);
+
+		if (!proceed) {
+			std::cout << "File not found. Do you want to create it? (y/n)\n";
+			char proceed_answer;
+			std::cin >> proceed_answer;
+			if (proceed_answer == 'y') {
+				SaveParameters(path, GeneticAlgorithmParameters(), 2);
+			}
+		}
+
+	} while (!proceed);
+
+	ClearScreen();
+
+	std::cout << "Insert the number of tests\n";
+	std::cin >> test_size;
+
+	std::map<std::string, std::function<float(Chromosome<float>&, std::map<std::string, float>&)>> functions = {
+		{"Rastrigin", RastriginFitness},
+		{"Sphere", SphereFitness},
+		{"Schwefel", SchwefelFitness},
+		{"Rosenbrock", RosenbrockFitness},
+		{"Griewank", GriewankFitness},
+		{"Ackley", AckleyFitness}
+	};
+
+	do {
+		ClearScreen();
+		std::cout << "Insert the function name\n";
+		std::cin >> function_name;
+		proceed = functions.count(function_name) != 0;
+
+	} while (!proceed);
+
+	std::cout << "Do you want to use the adjusted evaluations value for ranking? (y/n)";
+	char adjusted_answer;
+	std::cin >> adjusted_answer;
+	use_adjusted = adjusted_answer == 'y';
 
 	float target_success_rate = 0.95f;
 
-	while (true) {
+	char menu_answer;
+
+	float best_evaluation = FLT_MAX;
+	GeneticAlgorithmParameters best_gap = GeneticAlgorithmParameters();
+
+	do {
 		ClearScreen();
 		GeneticAlgorithmParameters gap = LoadParameters(path);
-		GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, RastriginFitness);
+		GeneticAlgorithm<float> ga = GeneticAlgorithm<float>(gap, UniformInitialization, TournamentSelection<float>, IntermediateCrossover, RealValuedMutation, RealValuedRecombination, functions[function_name]);
 
 		//RunCompleteTest("Rastrigin", ga, 5, 100, 100, directory);
-		TestSuite::TestResults result = TestSuite::CompleteTest(ga, 20, 100, 200);
+		TestSuite::TestResults result = TestSuite::CompleteTest(ga, test_size, 100, 200);
 
 		float success_rate = std::accumulate(result.successful_executions_distribution_.begin(), result.successful_executions_distribution_.end(), 0.0f);
+
 		float average_evaluation = result.final_evaluations_stats_.average;
 
 		float N = std::log(1 - target_success_rate) / std::log(1 - success_rate);
-		float actual_average_evaluation = average_evaluation * N;
+		float adjusted_average_evaluation = average_evaluation * N;
 
-		std::cout << "Average Best Fitness: " << FloatFormat(result.overall_best_fitness_values_stats_.average, 8) << "\n";
+		if (adjusted_average_evaluation < 0) {
+			adjusted_average_evaluation = -adjusted_average_evaluation;
+		}
+
+		std::cout << "Average Overall Best Fitness: " << FloatFormat(result.overall_best_fitness_values_stats_.average, 8) << "\n";
 		std::cout << "Success Rate: " << FloatFormat(success_rate, 5) << "\n";
 		std::cout << "Average Evaluations: " << FloatFormat(average_evaluation, 2) << "\n";
 		std::cout << "N: " << FloatFormat(N, 2) << "\n";
-		std::cout << "Actual Average Evaluations: " << FloatFormat(actual_average_evaluation, 2) << "\n";
-		system("PAUSE");
-	}
+		std::cout << "Adjusted Average Evaluations: " << FloatFormat(adjusted_average_evaluation, 2) << "\n";
+
+		float final_evaluation = use_adjusted ? adjusted_average_evaluation : average_evaluation;
+
+		if (final_evaluation < best_evaluation) {
+			std::cout << "FOUND NEW BEST!\n\n";
+			best_evaluation = final_evaluation;
+			best_gap = gap;
+		}
+
+		do {
+			std::cout << "1. New test\n2. Show best\n3. Save best\n0. Quit\n";
+			std::cin >> menu_answer;
+
+			if (menu_answer == '2') {
+				std::cout << best_gap.ToString() << "\n";
+			}
+			else if (menu_answer == '3') {
+				SaveParameters(path, best_gap, 2);
+			}
+
+		} while (menu_answer != '1' && menu_answer != '0');
+
+	} while (menu_answer != '0');
 
 	return 0;
 }
